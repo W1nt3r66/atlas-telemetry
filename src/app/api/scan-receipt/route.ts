@@ -3,6 +3,12 @@ import { GoogleGenAI } from "@google/genai";
 
 export const maxDuration = 30;
 
+const MODELS_TO_TRY = [
+  "gemini-3.8-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-3.5-flash",
+];
+
 function parseDataUrl(input?: string | null, fallbackMime = "image/jpeg") {
   if (!input) return null;
   const match = input.match(/^data:([^;]+);base64,(.+)$/);
@@ -77,19 +83,38 @@ export async function POST(req: Request) {
     parts.push({ text: prompt });
 
     const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: "gemini-3.8-flash",
-      contents: parts,
-      config: {
-        responseMimeType: "application/json",
-      },
-    });
+    let lastError: unknown = null;
 
-    const rawText = response.text || "{}";
-    const cleanedJson = rawText.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(cleanedJson);
+    for (const model of MODELS_TO_TRY) {
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents: parts,
+          config: {
+            responseMimeType: "application/json",
+          },
+        });
 
-    return NextResponse.json(parsed);
+        const rawText = response.text || "{}";
+        const cleanedJson = rawText.replace(/```json|```/g, "").trim();
+        const parsed = JSON.parse(cleanedJson);
+        return NextResponse.json(parsed);
+      } catch (err) {
+        lastError = err;
+        console.warn(`OCR model ${model} failed, trying fallback...`, err);
+      }
+    }
+
+    const rawMsg =
+      lastError instanceof Error
+        ? lastError.message
+        : "All Gemini models busy.";
+    const friendlyMsg =
+      rawMsg.includes("503") || rawMsg.includes("UNAVAILABLE")
+        ? "AI servers are momentarily busy (503). Tap again in a few seconds."
+        : rawMsg;
+
+    return NextResponse.json({ error: friendlyMsg }, { status: 503 });
   } catch (error) {
     console.error("AI Scan Error:", error);
     const message =

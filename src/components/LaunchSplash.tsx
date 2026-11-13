@@ -97,9 +97,7 @@ export default function LaunchSplash() {
             readyToHide ? "opacity-0 pointer-events-none" : "opacity-100"
           }`}
         >
-          <div className="pointer-events-none absolute w-72 h-72 rounded-full bg-[#0e84eb]/20 blur-3xl" />
-
-          <div className="relative z-10 flex flex-col items-center gap-3 animate-atlas-pop">
+          <div className="relative z-10 flex flex-col items-center gap-3">
             <div
               style={{ background: "var(--accent-primary)" }}
               className="w-16 h-16 rounded-2xl text-white flex items-center justify-center shadow-xl border border-white/50"
