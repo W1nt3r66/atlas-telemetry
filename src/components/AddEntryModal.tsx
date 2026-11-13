@@ -18,45 +18,59 @@ interface Props {
   onClose: () => void;
 }
 
-// Resize & compress iPhone photos so Next.js API body limits (~1MB) never fail
-async function compressImageToBase64(file: File): Promise<string> {
+function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Could not read photo file."));
+    reader.readAsDataURL(file);
+  });
+}
+
+// Resize & compress iPhone photos safely with fallback to raw data URL
+async function prepareImageBase64(file: File): Promise<string> {
+  const rawDataUrl = await readFileAsDataUrl(file);
+
+  return new Promise((resolve) => {
     const img = new Image();
-    const objectUrl = URL.createObjectURL(file);
-
     img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      const maxDim = 1280;
-      let { width, height } = img;
+      try {
+        const maxDim = 1024;
+        let { width, height } = img;
 
-      if (width > maxDim || height > maxDim) {
-        if (width > height) {
-          height = Math.round((height * maxDim) / width);
-          width = maxDim;
-        } else {
-          width = Math.round((width * maxDim) / height);
-          height = maxDim;
+        if (!width || !height) {
+          resolve(rawDataUrl);
+          return;
         }
-      }
 
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        reject(new Error("Canvas context unavailable"));
-        return;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(rawDataUrl);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressed = canvas.toDataURL("image/jpeg", 0.78);
+        resolve(compressed && compressed.length > 50 ? compressed : rawDataUrl);
+      } catch {
+        resolve(rawDataUrl);
       }
-      ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL("image/jpeg", 0.82));
     };
 
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error("Failed to read image"));
-    };
-
-    img.src = objectUrl;
+    img.onerror = () => resolve(rawDataUrl);
+    img.src = rawDataUrl;
   });
 }
 
@@ -83,7 +97,6 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
 
   const handleReceiptScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    // Reset input value so picking the same image again still triggers onChange
     e.target.value = "";
     if (!file) return;
 
@@ -91,21 +104,30 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
     setScanStatus(null);
 
     try {
-      const compressedBase64 = await compressImageToBase64(file);
+      const preparedBase64 = await prepareImageBase64(file);
+
       const res = await fetch("/api/ocr-receipt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          imageBase64: compressedBase64,
+          imageBase64: preparedBase64,
           scanType: entryType,
         }),
       });
 
-      const data = await res.json();
+      const rawResponseText = await res.text();
+      let data: Record<string, unknown> = {};
+      try {
+        data = JSON.parse(rawResponseText);
+      } catch {
+        setScanStatus(`Server error (${res.status}). Check Vercel logs.`);
+        setScanning(false);
+        return;
+      }
 
       if (!res.ok || data.error) {
         setScanStatus(
-          data.error || "Could not read receipt. Try a clearer photo.",
+          String(data.error || `Scan error (${res.status}). Try again.`),
         );
         setScanning(false);
         return;
@@ -150,8 +172,9 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
           ? "Details auto-filled from photo!"
           : "No numbers detected — please enter manually.",
       );
-    } catch {
-      setScanStatus("Scan failed. Check connection or GEMINI_API_KEY.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Network error";
+      setScanStatus(`Scan failed: ${msg}`);
     } finally {
       setScanning(false);
     }
@@ -188,7 +211,6 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
     onClose();
   };
 
-  // min-w-0 + max-w-full + appearance-none prevents iOS Safari date input overflow
   const inputClass =
     "block w-full min-w-0 max-w-full h-11 mt-1.5 px-3.5 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-input)] text-[var(--text-main)] text-sm font-medium appearance-none focus:outline-none focus:ring-2 focus:ring-[#0e84eb]/40";
 

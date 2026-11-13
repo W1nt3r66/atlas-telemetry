@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 
+export const maxDuration = 30;
+
 function parseDataUrl(input?: string | null, fallbackMime = "image/jpeg") {
   if (!input) return null;
   const match = input.match(/^data:([^;]+);base64,(.+)$/);
@@ -15,7 +17,7 @@ export async function POST(req: Request) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: "GEMINI_API_KEY is missing in .env.local / Vercel env vars." },
+        { error: "GEMINI_API_KEY is missing in Vercel Environment Variables." },
         { status: 500 },
       );
     }
@@ -36,19 +38,13 @@ export async function POST(req: Request) {
     > = [];
 
     const singleImg = parseDataUrl(imageBase64);
-    if (singleImg) {
-      parts.push({ inlineData: singleImg });
-    }
+    if (singleImg) parts.push({ inlineData: singleImg });
 
     const billImg = parseDataUrl(billBase64, billMime || "image/jpeg");
-    if (billImg) {
-      parts.push({ inlineData: billImg });
-    }
+    if (billImg) parts.push({ inlineData: billImg });
 
     const odoImg = parseDataUrl(odoBase64, odoMime || "image/jpeg");
-    if (odoImg) {
-      parts.push({ inlineData: odoImg });
-    }
+    if (odoImg) parts.push({ inlineData: odoImg });
 
     if (parts.length === 0) {
       return NextResponse.json(
@@ -96,9 +92,8 @@ export async function POST(req: Request) {
     return NextResponse.json(parsed);
   } catch (error) {
     console.error("AI Scan Error:", error);
-    return NextResponse.json(
-      { error: "Gemini failed to scan photo. Check API key or try again." },
-      { status: 500 },
-    );
+    const message =
+      error instanceof Error ? error.message : "Gemini failed to scan photo.";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
