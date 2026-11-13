@@ -45,7 +45,6 @@ export default function LaunchSplash() {
     const onTouchMove = (e: TouchEvent) => {
       if (!isPullingFromTop.current || touchStartY.current === null) return;
       const deltaY = e.touches[0].clientY - touchStartY.current;
-      // Prevent Safari rubber-band gap when pulling down at top of page
       if (deltaY > 8 && window.scrollY <= 0 && e.cancelable) {
         e.preventDefault();
       }
@@ -93,7 +92,8 @@ export default function LaunchSplash() {
       {/* Initial Cold-Launch Splash */}
       {showInitial && (
         <div
-          className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-[var(--bg-main)]/95 backdrop-blur-2xl transition-opacity duration-400 ${
+          style={{ backgroundImage: "var(--bg-gradient)" }}
+          className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-[var(--bg-main)] transition-opacity duration-400 ${
             readyToHide ? "opacity-0 pointer-events-none" : "opacity-100"
           }`}
         >
