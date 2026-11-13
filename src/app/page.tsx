@@ -76,12 +76,29 @@ export default function DashboardPage() {
     ? calculateMaintenanceStatus(activeVehicle, latestOdo)
     : null;
 
+  const serviceIntervalKm = activeVehicle?.service_interval_km || 10000;
   const kmSinceService = activeVehicle
     ? Math.max(
         0,
         latestOdo -
           (activeVehicle.last_service_odo || activeVehicle.initial_odo || 0),
       )
+    : 0;
+
+  const washProgressPct =
+    maint && maint.washInterval > 0
+      ? Math.min(
+          100,
+          Math.max(
+            0,
+            ((maint.washInterval - maint.washDaysLeft) / maint.washInterval) *
+              100,
+          ),
+        )
+      : 0;
+
+  const serviceProgressPct = activeVehicle
+    ? Math.min(100, Math.max(0, (kmSinceService / serviceIntervalKm) * 100))
     : 0;
 
   const handleQuickLog = async (
@@ -276,9 +293,7 @@ export default function DashboardPage() {
             <div className="w-full h-2 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden border border-[var(--border-color)]">
               <div
                 className="h-full rounded-full bg-[var(--accent-primary)] transition-all"
-                style={{
-                  width: `${maint ? (maint.washProgressPct ?? 0) : 0}%`,
-                }}
+                style={{ width: `${washProgressPct}%` }}
               />
             </div>
             <p className="text-[11px] text-[var(--text-muted)] line-clamp-2">
@@ -314,7 +329,7 @@ export default function DashboardPage() {
               {maint
                 ? maint.isServiceDue
                   ? "Due!"
-                  : `${Math.round(maint.serviceProgressPct ?? 0)}%`
+                  : `${Math.round(serviceProgressPct)}%`
                 : "0%"}
             </span>
           </div>
@@ -323,17 +338,13 @@ export default function DashboardPage() {
             <div className="text-lg sm:text-xl font-black tabular-nums leading-tight">
               {kmSinceService.toLocaleString()}{" "}
               <span className="text-xs font-bold text-[var(--text-muted)]">
-                /{" "}
-                {(activeVehicle?.service_interval_km || 10000).toLocaleString()}{" "}
-                km
+                / {serviceIntervalKm.toLocaleString()} km
               </span>
             </div>
             <div className="w-full h-2 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden border border-[var(--border-color)]">
               <div
                 className="h-full rounded-full bg-[var(--accent-primary)] transition-all"
-                style={{
-                  width: `${maint ? (maint.serviceProgressPct ?? 0) : 0}%`,
-                }}
+                style={{ width: `${serviceProgressPct}%` }}
               />
             </div>
             <p className="text-[11px] text-[var(--text-muted)] line-clamp-2">
