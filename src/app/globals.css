@@ -71,6 +71,11 @@ html.dark {
     inset 0 -1px 1px 0 rgba(0, 0, 0, 0.25);
 }
 
+html,
+body {
+  overscroll-behavior-y: none;
+}
+
 body {
   background-color: var(--bg-main);
   background-image: var(--bg-gradient);
@@ -164,4 +169,42 @@ body {
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Launch Splash Animations */
+@keyframes verticalSwoosh {
+  0%,
+  22% {
+    transform: translateY(120vh);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-165vh);
+    opacity: 0;
+  }
+}
+
+@keyframes atlasPop {
+  0% {
+    transform: scale(0.92) translateY(8px);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-vertical-swoosh {
+  animation: verticalSwoosh 2.1s cubic-bezier(0.28, 0.05, 0.22, 1) forwards;
+}
+
+.animate-atlas-pop {
+  animation: atlasPop 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

@@ -1,57 +1,104 @@
-import { NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import { NextResponse } from "next/server";
+import { GoogleGenAI } from "@google/genai";
+
+function parseDataUrl(input?: string | null, fallbackMime = "image/jpeg") {
+  if (!input) return null;
+  const match = input.match(/^data:([^;]+);base64,(.+)$/);
+  if (match) {
+    return { mimeType: match[1], data: match[2] };
+  }
+  return { mimeType: fallbackMime, data: input };
+}
 
 export async function POST(req: Request) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      // Demo fallback if GEMINI_API_KEY isn't set yet
-      return NextResponse.json({
-        amount: 1850,
-        fuel_liters: 17.45,
-        odo_reading: 14680,
-        date: new Date().toISOString().split('T')[0],
-        category: 'Fuel',
-        notes: 'Demo AI Scan (Add GEMINI_API_KEY in .env.local for live OCR)',
-      });
+      return NextResponse.json(
+        { error: "GEMINI_API_KEY is missing in .env.local / Vercel env vars." },
+        { status: 500 },
+      );
     }
 
-    const ai = new GoogleGenAI({ apiKey });
-    const { billBase64, billMime, odoBase64, odoMime, entryType } = await req.json();
+    const body = await req.json();
+    const {
+      imageBase64,
+      scanType,
+      billBase64,
+      billMime,
+      odoBase64,
+      odoMime,
+      entryType,
+    } = body;
 
-    const parts: any[] = [];
-    if (billBase64) {
-      parts.push({ inlineData: { data: billBase64, mimeType: billMime || 'image/jpeg' } });
-    }
-    if (odoBase64) {
-      parts.push({ inlineData: { data: odoBase64, mimeType: odoMime || 'image/jpeg' } });
+    const parts: Array<
+      { inlineData: { data: string; mimeType: string } } | { text: string }
+    > = [];
+
+    const singleImg = parseDataUrl(imageBase64);
+    if (singleImg) {
+      parts.push({ inlineData: singleImg });
     }
 
+    const billImg = parseDataUrl(billBase64, billMime || "image/jpeg");
+    if (billImg) {
+      parts.push({ inlineData: billImg });
+    }
+
+    const odoImg = parseDataUrl(odoBase64, odoMime || "image/jpeg");
+    if (odoImg) {
+      parts.push({ inlineData: odoImg });
+    }
+
+    if (parts.length === 0) {
+      return NextResponse.json(
+        { error: "No image data received by server." },
+        { status: 400 },
+      );
+    }
+
+    const hint = scanType || entryType || "fuel";
     const prompt = `
-      Analyze the uploaded image(s) for a car tracking app in India (currency INR).
-      Entry type hint: ${entryType}.
-      Extract strictly as valid JSON (no markdown):
+      You are an OCR parser for a vehicle telemetry app in India (currency INR, distance in km, fuel in liters).
+      The uploaded photo can be a fuel pump receipt, an invoice/bill, a UPI payment screenshot, OR a car instrument cluster / digital odometer display.
+      Entry type hint: "${hint}".
+
+      Rules:
+      - If it is a fuel receipt/bill: extract total paid INR as "amount", fuel volume in liters as "fuel_liters", receipt date as "YYYY-MM-DD", and pump/station or item summary as "notes".
+      - If it is a car dashboard / odometer photo: extract the main total odometer reading (ignore Trip A / Trip B if total ODO is shown) as "odo_reading" (integer/number).
+      - If both or partial info are visible, extract everything visible and leave unseen fields as null.
+
+      Return strictly valid JSON with these exact keys:
       {
-        "amount": number or null,
-        "fuel_liters": number or null,
-        "odo_reading": number or null,
-        "date": "YYYY-MM-DD" or null,
-        "category": "Fuel" | "Accessories" | "Consumables" | "Service" | "Wash",
-        "notes": string
+        "amount": number | null,
+        "fuel_liters": number | null,
+        "odo_reading": number | null,
+        "date": "YYYY-MM-DD" | null,
+        "category": "Fuel" | "Accessories" | "Insurance" | "Toll / FASTag" | "Parking" | "Repair" | "Service" | "Wash" | "Other",
+        "notes": string | null
       }
     `;
     parts.push({ text: prompt });
 
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: "gemini-2.5-flash",
       contents: parts,
+      config: {
+        responseMimeType: "application/json",
+      },
     });
 
-    const rawText = response.text || '{}';
-    const cleanedJson = rawText.replace(/```json|```/g, '').trim();
-    return NextResponse.json(JSON.parse(cleanedJson));
+    const rawText = response.text || "{}";
+    const cleanedJson = rawText.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleanedJson);
+
+    return NextResponse.json(parsed);
   } catch (error) {
-    console.error('AI Scan Error:', error);
-    return NextResponse.json({ error: 'Failed to scan images' }, { status: 500 });
+    console.error("AI Scan Error:", error);
+    return NextResponse.json(
+      { error: "Gemini failed to scan photo. Check API key or try again." },
+      { status: 500 },
+    );
   }
 }

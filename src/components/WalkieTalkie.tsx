@@ -29,7 +29,9 @@ export default function WalkieTalkie() {
   const playChirp = (freqStart = 1200, freqEnd = 1600) => {
     try {
       const ctx = new (
-        window.AudioContext || (window as any).webkitAudioContext
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext })
+          .webkitAudioContext
       )();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -133,12 +135,13 @@ export default function WalkieTalkie() {
   return (
     <>
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="funky-btn fixed bottom-20 right-4 z-50 flex items-center gap-2 px-3.5 py-2.5 rounded-full font-black text-xs bg-[var(--accent-primary)] text-white cursor-pointer"
+        className="funky-btn-primary fixed bottom-20 right-4 z-50 flex items-center gap-2 px-3.5 py-2.5 rounded-full font-black text-xs cursor-pointer"
         title="Atlas Team Radio (Offline Walkie-Talkie)"
       >
         <Radio
-          className={`w-4 h-4 ${status === "connected" ? "animate-pulse text-red-400" : ""}`}
+          className={`w-4 h-4 ${status === "connected" ? "animate-pulse text-red-300" : ""}`}
         />
         <span>Team Radio</span>
       </button>
@@ -153,8 +156,9 @@ export default function WalkieTalkie() {
               <span>Atlas Team Radio</span>
             </div>
             <button
+              type="button"
               onClick={() => setIsOpen(false)}
-              className="funky-btn p-1 rounded-full bg-[var(--accent-secondary)] cursor-pointer"
+              className="funky-btn p-1.5 rounded-full bg-[var(--accent-secondary)] cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -168,10 +172,12 @@ export default function WalkieTalkie() {
           {status !== "connected" ? (
             <div className="space-y-3">
               <button
+                type="button"
                 onClick={() => initPeer(true)}
                 className="funky-btn w-full py-2.5 rounded-2xl font-bold text-xs bg-[var(--accent-secondary)] flex items-center justify-center gap-2 cursor-pointer"
               >
-                <Link2 className="w-4 h-4" /> 1. Create Convoy Channel (Host)
+                <Link2 className="w-4 h-4" />
+                <span>1. Create Convoy Channel (Host)</span>
               </button>
 
               {signalCode && (
@@ -183,11 +189,14 @@ export default function WalkieTalkie() {
                     <input
                       readOnly
                       value={signalCode}
-                      className="w-full text-xs p-2 rounded-xl border border-[var(--border-color)] bg-white/30 dark:bg-white/5 truncate focus:outline-none"
+                      className="w-full text-xs p-2 rounded-xl border border-[var(--border-color)] bg-[var(--bg-input)] text-[var(--text-main)] truncate focus:outline-none"
                     />
                     <button
+                      type="button"
                       onClick={copyCode}
-                      className="funky-btn px-3 rounded-xl bg-[var(--accent-primary)] text-white cursor-pointer"
+                      title="Copy Share Code"
+                      aria-label="Copy Share Code"
+                      className="funky-btn-primary px-3 rounded-xl flex items-center justify-center cursor-pointer shrink-0"
                     >
                       {copied ? (
                         <Check className="w-4 h-4" />
@@ -199,7 +208,7 @@ export default function WalkieTalkie() {
                 </div>
               )}
 
-              <div className="space-y-1 pt-2 border-t border-[var(--border-color)]">
+              <div className="space-y-1 pt-2 border-t border-[var(--border-subtle)]">
                 <label className="text-[11px] font-bold">
                   2. Or paste friend&apos;s code:
                 </label>
@@ -208,11 +217,12 @@ export default function WalkieTalkie() {
                     value={remoteCode}
                     onChange={(e) => setRemoteCode(e.target.value)}
                     placeholder="Paste code..."
-                    className="w-full text-xs p-2 rounded-xl border border-[var(--border-color)] bg-white/30 dark:bg-white/5 focus:outline-none"
+                    className="w-full text-xs p-2 rounded-xl border border-[var(--border-color)] bg-[var(--bg-input)] text-[var(--text-main)] focus:outline-none"
                   />
                   <button
+                    type="button"
                     onClick={acceptRemoteSignal}
-                    className="funky-btn px-3.5 py-1.5 rounded-xl font-bold text-xs bg-[var(--accent-secondary)] cursor-pointer"
+                    className="funky-btn-primary px-3.5 py-1.5 rounded-xl font-bold text-xs cursor-pointer shrink-0"
                   >
                     Join
                   </button>
@@ -222,14 +232,15 @@ export default function WalkieTalkie() {
           ) : (
             <div className="flex flex-col items-center py-3 space-y-3">
               <button
+                type="button"
                 onMouseDown={startTalking}
                 onMouseUp={stopTalking}
                 onTouchStart={startTalking}
                 onTouchEnd={stopTalking}
-                className={`funky-btn w-24 h-24 rounded-full flex flex-col items-center justify-center font-black text-xs transition select-none cursor-pointer ${
+                className={`w-24 h-24 rounded-full flex flex-col items-center justify-center font-black text-xs transition select-none cursor-pointer ${
                   isTalking
-                    ? "bg-red-500 text-white scale-95"
-                    : "bg-[var(--accent-primary)] text-white"
+                    ? "funky-btn bg-red-500 text-white scale-95"
+                    : "funky-btn-primary"
                 }`}
               >
                 {isTalking ? (

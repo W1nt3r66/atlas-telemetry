@@ -48,7 +48,7 @@ export default function OwnerPage() {
     "w-full mt-1.5 px-3.5 py-2.5 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-input)] text-[var(--text-main)] text-sm font-medium focus:outline-none";
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-6 pb-24">
       {/* Uniform Floating Frosted Toast Popup (Matches Garage Page) */}
       {toastMessage && (
         <div className="fixed top-20 right-4 z-50 glass-popover px-4 py-3 flex items-center gap-2 text-xs font-black animate-in fade-in slide-in-from-top-2">
@@ -59,7 +59,7 @@ export default function OwnerPage() {
 
       <div>
         <h1 className="text-2xl font-black flex items-center gap-2">
-          <User className="w-6 h-6" /> Owner & Cloud Profile
+          <User className="w-6 h-6" /> Owner &amp; Cloud Profile
         </h1>
         <p className="text-xs text-[var(--text-muted)]">
           Manage your driver details synced across devices via Google Sign-In.
@@ -155,9 +155,14 @@ export default function OwnerPage() {
           onClick={handleDeleteAccount}
           className="funky-btn px-4 py-2.5 rounded-full bg-red-500/15 text-red-500 border-red-400/40 font-black text-xs flex items-center gap-1.5 cursor-pointer"
         >
-          <Trash2 className="w-3.5 h-3.5" /> Delete Cloud Garage & Sign Out
+          <Trash2 className="w-3.5 h-3.5" /> Delete Cloud Garage &amp; Sign Out
         </button>
       </div>
+
+      {/* Accounts Page Version & Rebrand Footnote */}
+      <p className="text-center text-[11px] font-semibold tracking-wide text-[var(--text-muted)] pt-2">
+        Motorly is now Atlas &bull; v2.0.2
+      </p>
     </div>
   );
 }

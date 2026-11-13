@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useApp } from "@/context/AppContext";
 import {
   X,
@@ -8,13 +8,56 @@ import {
   Receipt,
   Wrench,
   Droplets,
-  Sparkles,
-  Upload,
+  Camera,
+  Image as ImageIcon,
+  Loader2,
 } from "lucide-react";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+}
+
+// Resize & compress iPhone photos so Next.js API body limits (~1MB) never fail
+async function compressImageToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const maxDim = 1280;
+      let { width, height } = img;
+
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Canvas context unavailable"));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", 0.82));
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Failed to read image"));
+    };
+
+    img.src = objectUrl;
+  });
 }
 
 export default function AddEntryModal({ isOpen, onClose }: Props) {
@@ -31,34 +74,85 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
   const [category, setCategory] = useState("Accessories");
   const [notes, setNotes] = useState("");
   const [scanning, setScanning] = useState(false);
+  const [scanStatus, setScanStatus] = useState<string | null>(null);
+
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const galleryInputRef = useRef<HTMLInputElement | null>(null);
 
   if (!isOpen || !activeVehicle) return null;
 
   const handleReceiptScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    // Reset input value so picking the same image again still triggers onChange
+    e.target.value = "";
     if (!file) return;
+
     setScanning(true);
+    setScanStatus(null);
+
     try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const res = await fetch("/api/ocr-receipt", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            imageBase64: reader.result,
-            scanType: entryType,
-          }),
-        });
-        const data = await res.json();
-        if (data.amount) setAmount(String(data.amount));
-        if (data.fuel_liters) setFuelLiters(String(data.fuel_liters));
-        if (data.odo_reading) setOdoReading(String(data.odo_reading));
-        if (data.date) setDate(data.date);
-        if (data.notes) setNotes(data.notes);
+      const compressedBase64 = await compressImageToBase64(file);
+      const res = await fetch("/api/ocr-receipt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageBase64: compressedBase64,
+          scanType: entryType,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        setScanStatus(
+          data.error || "Could not read receipt. Try a clearer photo.",
+        );
         setScanning(false);
-      };
-      reader.readAsDataURL(file);
+        return;
+      }
+
+      let detectedAny = false;
+      if (
+        data.amount !== null &&
+        data.amount !== undefined &&
+        Number(data.amount) > 0
+      ) {
+        setAmount(String(data.amount));
+        detectedAny = true;
+      }
+      if (
+        data.fuel_liters !== null &&
+        data.fuel_liters !== undefined &&
+        Number(data.fuel_liters) > 0
+      ) {
+        setFuelLiters(String(data.fuel_liters));
+        detectedAny = true;
+      }
+      if (
+        data.odo_reading !== null &&
+        data.odo_reading !== undefined &&
+        Number(data.odo_reading) > 0
+      ) {
+        setOdoReading(String(data.odo_reading));
+        detectedAny = true;
+      }
+      if (data.date && /^\d{4}-\d{2}-\d{2}$/.test(String(data.date))) {
+        setDate(String(data.date));
+        detectedAny = true;
+      }
+      if (data.notes) {
+        setNotes(String(data.notes));
+        detectedAny = true;
+      }
+
+      setScanStatus(
+        detectedAny
+          ? "Details auto-filled from photo!"
+          : "No numbers detected — please enter manually.",
+      );
     } catch {
+      setScanStatus("Scan failed. Check connection or GEMINI_API_KEY.");
+    } finally {
       setScanning(false);
     }
   };
@@ -90,11 +184,13 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
     setFuelLiters("");
     setOdoReading("");
     setNotes("");
+    setScanStatus(null);
     onClose();
   };
 
+  // min-w-0 + max-w-full + appearance-none prevents iOS Safari date input overflow
   const inputClass =
-    "w-full mt-1 px-3.5 py-2.5 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-input)] text-[var(--text-main)] text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/40";
+    "block w-full min-w-0 max-w-full h-11 mt-1.5 px-3.5 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-input)] text-[var(--text-main)] text-sm font-medium appearance-none focus:outline-none focus:ring-2 focus:ring-[#0e84eb]/40";
 
   const notePlaceholder =
     entryType === "fuel"
@@ -106,12 +202,12 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
           : "e.g., Foam Wash & Underbody Rinse";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="glass-modal w-full max-w-md p-6 relative space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-black">Log Activity</h2>
-            <p className="text-xs text-[var(--text-muted)]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm overflow-y-auto">
+      <div className="glass-modal w-full max-w-md p-5 sm:p-6 relative space-y-4 my-auto">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <h2 className="text-lg font-black leading-tight">Log Activity</h2>
+            <p className="text-xs text-[var(--text-muted)] truncate">
               Vehicle: <strong>{activeVehicle.name}</strong> (
               {activeVehicle.plate})
             </p>
@@ -119,7 +215,7 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
           <button
             type="button"
             onClick={onClose}
-            className="funky-btn p-2 rounded-full bg-[var(--accent-secondary)] cursor-pointer"
+            className="funky-btn p-2 rounded-full bg-[var(--accent-secondary)] cursor-pointer shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
@@ -139,40 +235,75 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
               onClick={() =>
                 setEntryType(id as "fuel" | "expense" | "service" | "wash")
               }
-              className={`funky-btn py-2.5 px-2 rounded-2xl flex flex-col items-center gap-1 text-xs font-extrabold cursor-pointer ${
+              className={`py-2.5 px-1.5 rounded-2xl flex flex-col items-center justify-center gap-1 text-xs font-extrabold cursor-pointer ${
                 entryType === id
-                  ? "bg-[var(--accent-primary)] text-white"
-                  : "bg-[var(--accent-secondary)]"
+                  ? "funky-btn-primary"
+                  : "funky-btn bg-[var(--accent-secondary)] text-[var(--text-main)]"
               }`}
             >
               <Icon className="w-4 h-4" />
-              {label}
+              <span>{label}</span>
             </button>
           ))}
         </div>
 
-        {/* AI Receipt / Odometer Photo Upload */}
-        <label className="flex items-center justify-center gap-2 p-3 rounded-2xl border border-dashed border-[var(--border-color)] bg-[var(--accent-secondary)]/60 cursor-pointer text-xs font-extrabold hover:opacity-90 transition">
-          <Upload className="w-4 h-4" />
-          <span>
-            {scanning
-              ? "Scanning Receipt with AI..."
-              : "Scan Receipt or Odometer Photo"}
-          </span>
-          <Sparkles className="w-3.5 h-3.5" />
+        {/* Dual AI Scanner Buttons: Camera OR Gallery */}
+        <div className="space-y-1.5">
+          <div className="grid grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              disabled={scanning}
+              onClick={() => cameraInputRef.current?.click()}
+              className="funky-btn py-2.5 px-3 rounded-2xl bg-[var(--accent-secondary)] text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              {scanning ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+              ) : (
+                <Camera className="w-3.5 h-3.5 shrink-0" />
+              )}
+              <span className="truncate">
+                {scanning ? "Scanning..." : "Take Photo"}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              disabled={scanning}
+              onClick={() => galleryInputRef.current?.click()}
+              className="funky-btn py-2.5 px-3 rounded-2xl bg-[var(--accent-secondary)] text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              <ImageIcon className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">From Gallery</span>
+            </button>
+          </div>
+
           <input
+            ref={cameraInputRef}
             type="file"
             accept="image/*"
             capture="environment"
             onChange={handleReceiptScan}
             className="hidden"
           />
-        </label>
+          <input
+            ref={galleryInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleReceiptScan}
+            className="hidden"
+          />
 
-        <form onSubmit={handleSubmit} className="space-y-3">
+          {scanStatus && (
+            <p className="text-[11px] font-bold text-center text-[#025cbc] dark:text-[#3898ec]">
+              {scanStatus}
+            </p>
+          )}
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-3.5">
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-bold">Date</label>
+            <div className="min-w-0">
+              <label className="block text-xs font-bold">Date</label>
               <input
                 type="date"
                 required
@@ -181,8 +312,8 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
                 className={inputClass}
               />
             </div>
-            <div>
-              <label className="text-xs font-bold">Amount (₹)</label>
+            <div className="min-w-0">
+              <label className="block text-xs font-bold">Amount (₹)</label>
               <input
                 type="number"
                 step="0.01"
@@ -197,9 +328,9 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
 
           {entryType === "fuel" && (
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold">
-                  Fuel Volume (Liters)
+              <div className="min-w-0">
+                <label className="block text-xs font-bold">
+                  Fuel Volume (L)
                 </label>
                 <input
                   type="number"
@@ -211,8 +342,8 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
                   className={inputClass}
                 />
               </div>
-              <div>
-                <label className="text-xs font-bold">Odometer (km)</label>
+              <div className="min-w-0">
+                <label className="block text-xs font-bold">Odometer (km)</label>
                 <input
                   type="number"
                   required
@@ -228,8 +359,10 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
           {entryType !== "fuel" && (
             <div className="grid grid-cols-2 gap-3">
               {entryType === "expense" && (
-                <div>
-                  <label className="text-xs font-bold">Sub-Category</label>
+                <div className="min-w-0">
+                  <label className="block text-xs font-bold">
+                    Sub-Category
+                  </label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
@@ -259,8 +392,14 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
                   </select>
                 </div>
               )}
-              <div className={entryType === "expense" ? "" : "col-span-2"}>
-                <label className="text-xs font-bold">Odometer (optional)</label>
+              <div
+                className={
+                  entryType === "expense" ? "min-w-0" : "col-span-2 min-w-0"
+                }
+              >
+                <label className="block text-xs font-bold">
+                  Odometer (optional)
+                </label>
                 <input
                   type="number"
                   placeholder="14560"
@@ -272,8 +411,10 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
             </div>
           )}
 
-          <div>
-            <label className="text-xs font-bold">Notes / Item Details</label>
+          <div className="min-w-0">
+            <label className="block text-xs font-bold">
+              Notes / Item Details
+            </label>
             <input
               type="text"
               placeholder={notePlaceholder}
@@ -285,7 +426,7 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
 
           <button
             type="submit"
-            className="funky-btn w-full py-3 rounded-full bg-[var(--accent-primary)] text-white font-black text-sm mt-2 cursor-pointer"
+            className="funky-btn-primary w-full py-3 rounded-full font-black text-sm mt-2 cursor-pointer"
           >
             Save Entry
           </button>

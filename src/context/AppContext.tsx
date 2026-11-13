@@ -323,6 +323,7 @@ interface AppContextType {
   toggleTheme: () => void;
   user: User | null;
   authLoading: boolean;
+  initialDataLoaded: boolean;
   syncStatus: "signed_out" | "syncing" | "synced" | "error";
   lastError: string | null;
   signInWithGoogle: () => Promise<void>;
@@ -351,6 +352,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState<boolean>(true);
+  const [initialDataLoaded, setInitialDataLoaded] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<
     "signed_out" | "syncing" | "synced" | "error"
   >("signed_out");
@@ -381,7 +383,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSyncStatus("syncing");
       setLastError(null);
 
-      // Save clean make/manufacturer without appending nickname into model
       const motorlyVehicles = nextVehicles.map((v) => {
         const cleanMake = cleanVehicleManufacturer(v.manufacturer, v.name);
         return {
@@ -484,6 +485,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (error) {
       setLastError(error.message);
       setSyncStatus("error");
+      setInitialDataLoaded(true);
       return;
     }
 
@@ -525,6 +527,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem("atlas_owner", JSON.stringify(newOwner));
     }
     setSyncStatus("synced");
+    setInitialDataLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -537,36 +540,63 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       document.documentElement.classList.toggle("dark", savedTheme === "dark");
     }
 
+    // Hydrate cached vehicles/logs immediately so there is zero empty flash
+    try {
+      const cachedVehicles = JSON.parse(
+        localStorage.getItem("atlas_vehicles") || "[]",
+      );
+      const cachedLogs = JSON.parse(localStorage.getItem("atlas_logs") || "[]");
+      const cachedOwner = JSON.parse(
+        localStorage.getItem("atlas_owner") || "null",
+      );
+      if (Array.isArray(cachedVehicles) && cachedVehicles.length > 0) {
+        setVehicles(cachedVehicles);
+        setActiveVehicleId(cachedVehicles[0].id);
+      }
+      if (Array.isArray(cachedLogs) && cachedLogs.length > 0) {
+        setLogs(cachedLogs);
+      }
+      if (cachedOwner) {
+        setOwner(cachedOwner);
+      }
+    } catch {
+      // Ignore malformed cache
+    }
+
     if (!supabase) {
       setAuthLoading(false);
+      setInitialDataLoaded(true);
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       if (currentUser) {
-        loadFromSupabase(currentUser);
+        await loadFromSupabase(currentUser);
       } else {
         setSyncStatus("signed_out");
+        setInitialDataLoaded(true);
       }
       setAuthLoading(false);
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       if (currentUser) {
-        loadFromSupabase(currentUser);
+        await loadFromSupabase(currentUser);
       } else {
         setVehicles([]);
         setLogs([]);
         setActiveVehicleId("");
         setOwner(EMPTY_OWNER);
         setSyncStatus("signed_out");
+        setInitialDataLoaded(true);
       }
+      setAuthLoading(false);
     });
 
     return () => subscription.unsubscribe();
@@ -757,6 +787,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         toggleTheme,
         user,
         authLoading,
+        initialDataLoaded,
         syncStatus,
         lastError,
         signInWithGoogle,

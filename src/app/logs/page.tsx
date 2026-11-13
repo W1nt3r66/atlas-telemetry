@@ -31,13 +31,20 @@ function LogsContent() {
       ? vehicleLogs
       : vehicleLogs.filter((l) => l.type === filterType);
 
-  // Combo Bar (Fuel Volume L) + Line (Mileage km/l) Chronological Points
+  // Strictly sort fuel entries chronologically (date -> odometer) before taking last 8
   const comboPoints = [...vehicleLogs]
     .filter(
       (l) =>
-        l.type === "fuel" && l.calculated_mileage && l.calculated_mileage > 0,
+        l.type === "fuel" &&
+        l.calculated_mileage !== null &&
+        l.calculated_mileage !== undefined &&
+        Number(l.calculated_mileage) > 0,
     )
-    .reverse()
+    .sort((a, b) => {
+      const dateCmp = String(a.date || "").localeCompare(String(b.date || ""));
+      if (dateCmp !== 0) return dateCmp;
+      return Number(a.odo_reading || 0) - Number(b.odo_reading || 0);
+    })
     .slice(-8);
 
   const maxM = Math.max(
@@ -46,7 +53,7 @@ function LogsContent() {
   );
   const minM = Math.min(
     ...comboPoints.map((p) => Number(p.calculated_mileage)),
-    4,
+    0,
   );
   const rangeM = Math.max(maxM - minM, 1);
 
@@ -55,28 +62,35 @@ function LogsContent() {
     10,
   );
 
+  // Synchronized Dual-Track SVG Geometry (Upper: Mileage Line, Lower: Fuel Bars)
   const chartWidth = 440;
-  const chartHeight = 160;
+  const chartHeight = 188;
   const padX = 32;
-  const topPad = 28;
-  const bottomBaseline = 136;
-  const plotHeight = bottomBaseline - topPad;
+
+  const lineTop = 26;
+  const lineBottom = 96;
+  const linePlotH = lineBottom - lineTop;
+
+  const barAreaTop = 112;
+  const barAreaBottom = 164;
+  const barMaxH = barAreaBottom - barAreaTop;
 
   const coords = comboPoints.map((pt, idx) => {
     const x =
       comboPoints.length === 1
         ? chartWidth / 2
         : padX + (idx / (comboPoints.length - 1)) * (chartWidth - padX * 2);
-    // Keep even the lowest mileage node at least 14px above baseline so its label pill never touches the bottom line
-    const yLine =
-      bottomBaseline -
-      14 -
-      ((Number(pt.calculated_mileage) - minM) / rangeM) * (plotHeight - 24);
+
+    const mileageVal = Number(pt.calculated_mileage);
     const liters = Number(pt.fuel_liters || 0);
-    const barH = Math.max(10, (liters / maxLiters) * (plotHeight * 0.68));
-    const yBar = bottomBaseline - barH;
-    const mileageStr = Number(pt.calculated_mileage).toFixed(1);
+
+    const yLine = lineBottom - ((mileageVal - minM) / rangeM) * linePlotH;
+
+    const barH = Math.max(8, (liters / maxLiters) * barMaxH);
+    const yBar = barAreaBottom - barH;
+    const mileageStr = mileageVal.toFixed(1);
     const pillW = Math.max(30, mileageStr.length * 6.5 + 8);
+
     return {
       id: pt.id,
       x,
@@ -85,12 +99,18 @@ function LogsContent() {
       barH,
       mileageStr,
       pillW,
-      liters,
+      liters: liters.toFixed(0),
       shortDate: pt.date.slice(5),
     };
   });
 
   const polylineStr = coords.map((c) => `${c.x},${c.yLine}`).join(" ");
+  const areaStr =
+    coords.length > 1
+      ? `${coords[0].x},${lineBottom + 6} ${polylineStr} ${
+          coords[coords.length - 1].x
+        },${lineBottom + 6}`
+      : "";
 
   // Category Expense Split Breakdown
   const totalSpend = vehicleLogs.reduce(
@@ -157,7 +177,7 @@ function LogsContent() {
           </style>
         </head>
         <body>
-          <h1>Atlas Telemetry & Expense Report</h1>
+          <h1>Atlas Telemetry &amp; Expense Report</h1>
           <div class="sub">
             Vehicle: <strong>${activeVehicle?.name || "All Vehicles"}</strong> (${activeVehicle?.plate || "N/A"}) •
             Driver: ${owner.fullName || "Owner"} • Filter: ${filterType.toUpperCase()} (${filteredLogs.length} entries)
@@ -167,7 +187,7 @@ function LogsContent() {
               <tr>
                 <th>Date</th>
                 <th>Category</th>
-                <th>Vendor & Details</th>
+                <th>Vendor &amp; Details</th>
                 <th style="text-align:right;">Odometer</th>
                 <th style="text-align:right;">Fuel</th>
                 <th style="text-align:right;">Mileage</th>
@@ -188,7 +208,7 @@ function LogsContent() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-black">Telemetry & Expense Logs</h1>
+          <h1 className="text-2xl font-black">Telemetry &amp; Expense Logs</h1>
           <p className="text-xs text-[var(--text-muted)]">
             {activeVehicle
               ? `${activeVehicle.name} (${activeVehicle.plate || "NO PLATE"}) • ${filteredLogs.length} entries`
@@ -205,74 +225,136 @@ function LogsContent() {
         </button>
       </div>
 
-      {/* Combo Bar + Line Chart & Expense Split Breakdown */}
+      {/* Synchronized Dual-Track Mileage & Fuel Chart + Expense Split */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Combo Bar (Fuel L) + Line (Mileage km/l) Chart */}
+        {/* Dual-Track Mileage (km/l) & Fuel Volume (L) Chart */}
         <div className="funky-card p-5 space-y-2.5">
           <div className="flex items-center justify-between gap-2">
             <span className="font-black text-sm flex items-center gap-1.5">
-              <TrendingUp className="w-4 h-4" /> Mileage & Fuel Combo
+              <TrendingUp className="w-4 h-4" /> Mileage &amp; Fuel Combo
             </span>
             <div className="flex items-center gap-2.5 text-[10px] font-extrabold text-[var(--text-muted)]">
               <span className="inline-flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-sm bg-current opacity-25 inline-block" />
-                Fuel (L)
-              </span>
-              <span className="inline-flex items-center gap-1">
                 <span className="w-2.5 h-0.5 bg-current inline-block" />
                 km/l
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="w-2.5 h-2.5 rounded-sm bg-current opacity-25 inline-block" />
+                Fuel (L)
               </span>
             </div>
           </div>
 
           {coords.length === 0 ? (
-            <div className="h-36 flex items-center justify-center text-xs text-[var(--text-muted)]">
+            <div className="h-44 flex items-center justify-center text-xs text-[var(--text-muted)]">
               Log at least two refuels with odometer readings to plot combo
               chart.
             </div>
           ) : (
             <svg
               viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-              className="w-full h-40 overflow-visible"
+              className="w-full h-48 overflow-visible"
             >
-              {/* Subtle Horizontal Baseline */}
+              <defs>
+                <linearGradient
+                  id="mileageAreaGrad"
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
+                  <stop
+                    offset="0%"
+                    stopColor="currentColor"
+                    stopOpacity="0.16"
+                  />
+                  <stop
+                    offset="100%"
+                    stopColor="currentColor"
+                    stopOpacity="0.0"
+                  />
+                </linearGradient>
+              </defs>
+
+              {/* Track Divider Baseline */}
               <line
-                x1={padX - 12}
-                y1={bottomBaseline}
-                x2={chartWidth - padX + 12}
-                y2={bottomBaseline}
+                x1={padX - 14}
+                y1={lineBottom + 6}
+                x2={chartWidth - padX + 14}
+                y2={lineBottom + 6}
+                stroke="currentColor"
+                strokeOpacity="0.14"
+                strokeWidth="1"
+              />
+
+              {/* Bottom Fuel Track Baseline */}
+              <line
+                x1={padX - 14}
+                y1={barAreaBottom}
+                x2={chartWidth - padX + 14}
+                y2={barAreaBottom}
                 stroke="currentColor"
                 strokeOpacity="0.2"
                 strokeWidth="1"
               />
 
-              {/* Frosted Volume Bars (Liters) */}
+              {/* Synchronized Column Guides + Bottom Fuel Bars (Liters) */}
               {coords.map((c) => (
                 <g key={`bar-${c.id}`}>
+                  {/* Continuous vertical axis guide connecting node -> bar -> date */}
+                  <line
+                    x1={c.x}
+                    y1={c.yLine}
+                    x2={c.x}
+                    y2={barAreaBottom}
+                    stroke="currentColor"
+                    strokeOpacity="0.14"
+                    strokeDasharray="2 2"
+                    strokeWidth="1"
+                  />
+                  {/* Fuel Volume Bar in Dedicated Lower Track */}
                   <rect
-                    x={c.x - 11}
+                    x={c.x - 12}
                     y={c.yBar}
-                    width="22"
+                    width="24"
                     height={c.barH}
                     rx="5"
                     fill="currentColor"
-                    fillOpacity="0.16"
+                    fillOpacity="0.2"
                   />
+                  {/* Liter Value Label cleanly above bar */}
                   <text
                     x={c.x}
-                    y={bottomBaseline + 14}
+                    y={c.yBar - 3}
+                    textAnchor="middle"
+                    fontSize="7.5"
+                    fontWeight="800"
+                    fill="currentColor"
+                    fillOpacity="0.7"
+                  >
+                    {c.liters}L
+                  </text>
+                  {/* Shared X-Axis Date */}
+                  <text
+                    x={c.x}
+                    y={barAreaBottom + 14}
                     textAnchor="middle"
                     fontSize="8.5"
                     fontWeight="700"
                     fill="currentColor"
-                    fillOpacity="0.6"
+                    fillOpacity="0.65"
                   >
                     {c.shortDate}
                   </text>
                 </g>
               ))}
 
-              {/* Mileage Trend Line */}
+              {/* Subtle Area Fill Under Mileage Line */}
+              {areaStr && (
+                <polygon points={areaStr} fill="url(#mileageAreaGrad)" />
+              )}
+
+              {/* Upper Mileage Trend Line */}
               <polyline
                 fill="none"
                 stroke="currentColor"
@@ -282,7 +364,7 @@ function LogsContent() {
                 points={polylineStr}
               />
 
-              {/* Mileage Nodes + High-Contrast Pill Badges so Values Never Overlap Line/Bars */}
+              {/* Mileage Nodes + Pill Badges */}
               {coords.map((c) => (
                 <g key={`node-${c.id}`}>
                   <circle
@@ -301,7 +383,7 @@ function LogsContent() {
                     rx="7"
                     fill="var(--bg-popover)"
                     stroke="currentColor"
-                    strokeOpacity="0.2"
+                    strokeOpacity="0.22"
                     strokeWidth="0.8"
                   />
                   <text

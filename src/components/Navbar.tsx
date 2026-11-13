@@ -17,7 +17,6 @@ import {
   Moon,
   Bell,
   LogOut,
-  ChevronDown,
   X,
 } from "lucide-react";
 
@@ -81,8 +80,6 @@ export default function Navbar() {
     user,
     signInWithGoogle,
     activeVehicle,
-    vehicles,
-    setActiveVehicleId,
     logs,
     signOut,
   } = useApp();
@@ -154,8 +151,6 @@ export default function Navbar() {
     { href: "/owner", label: "Owner", icon: User },
   ];
 
-  const getNickname = (fullName: string) => fullName.split("(")[0].trim();
-
   return (
     <>
       <header className="sticky top-0 z-40 backdrop-blur-xl bg-[var(--bg-main)]/30 border-b border-[var(--border-color)]">
@@ -170,30 +165,8 @@ export default function Navbar() {
             </span>
           </Link>
 
-          {/* Right Controls */}
+          {/* Right Controls (Clean & Uncluttered) */}
           <div className="flex items-center gap-2 shrink-0">
-            {user && vehicles.length > 0 && (
-              <div className="relative">
-                <select
-                  value={activeVehicle?.id || ""}
-                  onChange={(e) => setActiveVehicleId(e.target.value)}
-                  aria-label="Select Vehicle"
-                  className="funky-btn appearance-none pl-3.5 pr-7 py-2 rounded-full text-xs font-extrabold bg-[var(--accent-secondary)] text-[var(--text-main)] focus:outline-none cursor-pointer max-w-[105px] sm:max-w-[160px] truncate"
-                >
-                  {vehicles.map((v) => (
-                    <option
-                      key={v.id}
-                      value={v.id}
-                      className="bg-[var(--bg-main)]"
-                    >
-                      {getNickname(v.name)}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 opacity-75" />
-              </div>
-            )}
-
             {user && (
               <button
                 type="button"
