@@ -106,7 +106,7 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
     try {
       const preparedBase64 = await prepareImageBase64(file);
 
-      const res = await fetch("/api/ocr-receipt", {
+      const res = await fetch("/api/scan-receipt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
