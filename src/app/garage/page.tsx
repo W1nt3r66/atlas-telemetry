@@ -1,12 +1,18 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   useApp,
   PowertrainType,
   WheelerType,
   Vehicle,
 } from "@/context/AppContext";
+import VehicleAvatar, {
+  AVATAR_PRESETS,
+  VehicleAvatarKey,
+  getSavedVehicleAvatar,
+  saveVehicleAvatar,
+} from "@/components/VehicleAvatar";
 import {
   Warehouse,
   Plus,
@@ -16,6 +22,7 @@ import {
   X,
   CheckCircle2,
   ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 
 const INDIAN_PLATE_REGEX =
@@ -43,6 +50,8 @@ export default function GaragePage() {
   const [serviceInterval, setServiceInterval] = useState("");
   const [fuelType, setFuelType] = useState<PowertrainType>("Petrol");
   const [wheelerType, setWheelerType] = useState<WheelerType>("4-Wheeler");
+  const [selectedAvatar, setSelectedAvatar] =
+    useState<VehicleAvatarKey>("PrinceofCalcutta");
   const [initialOdo, setInitialOdo] = useState("");
   const [lastServiceOdo, setLastServiceOdo] = useState("");
   const [insuranceExpiry, setInsuranceExpiry] = useState("");
@@ -54,16 +63,34 @@ export default function GaragePage() {
   const [editName, setEditName] = useState("");
   const [editPlate, setEditPlate] = useState("");
   const [editServiceInterval, setEditServiceInterval] = useState("10000");
+  const [editAvatar, setEditAvatar] =
+    useState<VehicleAvatarKey>("PrinceofCalcutta");
   const [editInsuranceExpiry, setEditInsuranceExpiry] = useState("");
   const [editPucExpiry, setEditPucExpiry] = useState("");
   const [editRcExpiry, setEditRcExpiry] = useState("");
   const [editError, setEditError] = useState("");
 
+  const [avatarTick, setAvatarTick] = useState(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const syncAvatars = () => setAvatarTick((n) => n + 1);
+    window.addEventListener("atlas:vehicle-avatar-change", syncAvatars);
+    return () =>
+      window.removeEventListener("atlas:vehicle-avatar-change", syncAvatars);
+  }, []);
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3200);
+  };
+
+  const resolveVehicleAvatar = (v: Vehicle): VehicleAvatarKey => {
+    const direct = (v as Vehicle & { avatar?: string | null }).avatar;
+    if (direct && AVATAR_PRESETS.some((p) => p.key === direct)) {
+      return direct as VehicleAvatarKey;
+    }
+    return getSavedVehicleAvatar(v.id);
   };
 
   const handleAddVehicle = async (e: React.FormEvent) => {
@@ -96,7 +123,7 @@ export default function GaragePage() {
 
     const today = new Date().toISOString().split("T")[0];
 
-    await addVehicle({
+    const created = (await addVehicle({
       name: cleanName,
       plate: cleanPlate,
       manufacturer: cleanMake,
@@ -112,18 +139,31 @@ export default function GaragePage() {
       insurance_expiry: insuranceExpiry || "",
       puc_expiry: pucExpiry || "",
       rc_expiry: rcExpiry || "",
-    });
+    } as Omit<Vehicle, "id">)) as Vehicle | undefined | null;
+
+    if (created?.id) {
+      saveVehicleAvatar(created.id, selectedAvatar);
+      try {
+        await updateVehicle(created.id, {
+          avatar: selectedAvatar,
+        } as Partial<Vehicle>);
+      } catch {
+        // Local avatar map remains active if DB column isn't present
+      }
+    }
 
     setName("");
     setPlate("");
     setManufacturer("");
     setYear("");
     setServiceInterval("");
+    setSelectedAvatar("PrinceofCalcutta");
     setInitialOdo("");
     setLastServiceOdo("");
     setInsuranceExpiry("");
     setPucExpiry("");
     setRcExpiry("");
+    setAvatarTick((n) => n + 1);
     triggerToast("Added to garage!");
   };
 
@@ -132,13 +172,14 @@ export default function GaragePage() {
     setEditName(v.name);
     setEditPlate(v.plate);
     setEditServiceInterval(String(v.service_interval_km || 10000));
+    setEditAvatar(resolveVehicleAvatar(v));
     setEditInsuranceExpiry(v.insurance_expiry || "");
     setEditPucExpiry(v.puc_expiry || "");
     setEditRcExpiry(v.rc_expiry || "");
     setEditError("");
   };
 
-  const saveEdit = (id: string) => {
+  const saveEdit = async (id: string) => {
     setEditError("");
     const cleanName = editName.trim();
     const cleanPlate = editPlate.replace(/[\s-]/g, "").toUpperCase();
@@ -153,20 +194,82 @@ export default function GaragePage() {
       return;
     }
 
-    updateVehicle(id, {
-      name: cleanName,
-      plate: cleanPlate,
-      service_interval_km: Number(editServiceInterval),
-      insurance_expiry: editInsuranceExpiry || "",
-      puc_expiry: editPucExpiry || "",
-      rc_expiry: editRcExpiry || "",
-    });
+    saveVehicleAvatar(id, editAvatar);
+
+    try {
+      await updateVehicle(id, {
+        name: cleanName,
+        plate: cleanPlate,
+        service_interval_km: Number(editServiceInterval),
+        insurance_expiry: editInsuranceExpiry || "",
+        puc_expiry: editPucExpiry || "",
+        rc_expiry: editRcExpiry || "",
+        avatar: editAvatar,
+      } as Partial<Vehicle>);
+    } catch {
+      updateVehicle(id, {
+        name: cleanName,
+        plate: cleanPlate,
+        service_interval_km: Number(editServiceInterval),
+        insurance_expiry: editInsuranceExpiry || "",
+        puc_expiry: editPucExpiry || "",
+        rc_expiry: editRcExpiry || "",
+      });
+    }
+
     setEditingId(null);
-    triggerToast("Vehicle & renewal dates saved!");
+    setAvatarTick((n) => n + 1);
+    triggerToast("Vehicle, avatar & renewal dates saved!");
   };
 
   const inputClass =
     "flex items-center w-full h-11 mt-1.5 px-3.5 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-input)] text-[var(--text-main)] text-[16px] sm:text-sm font-medium leading-none appearance-none focus:outline-none";
+
+  const renderAvatarPickerGrid = (
+    current: VehicleAvatarKey,
+    onSelect: (key: VehicleAvatarKey) => void,
+    compact = false,
+  ) => (
+    <div
+      className={`grid ${
+        compact ? "grid-cols-3 gap-2" : "grid-cols-2 sm:grid-cols-3 gap-2.5"
+      } mt-1.5`}
+    >
+      {AVATAR_PRESETS.map((preset) => {
+        const active = current === preset.key;
+        return (
+          <button
+            key={preset.key}
+            type="button"
+            onClick={() => onSelect(preset.key)}
+            className={`p-2 rounded-2xl border text-left transition flex items-center gap-2.5 cursor-pointer ${
+              active
+                ? "bg-[#0e84eb]/15 border-[#0e84eb] ring-2 ring-[#0e84eb]/40"
+                : "bg-[var(--accent-secondary)] border-[var(--border-color)] hover:brightness-105"
+            }`}
+          >
+            <img
+              src={preset.src}
+              alt={preset.title}
+              className={`${
+                compact ? "w-10 h-10" : "w-12 h-12"
+              } rounded-xl bg-white object-contain p-0.5 border border-black/10 shrink-0`}
+            />
+            <div className="min-w-0">
+              <div className="text-[11px] font-black leading-tight truncate">
+                {preset.title}
+              </div>
+              {!compact && (
+                <div className="text-[10px] font-semibold text-[var(--text-muted)] truncate">
+                  {preset.subtitle}
+                </div>
+              )}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -182,8 +285,8 @@ export default function GaragePage() {
           <Warehouse className="w-6 h-6" /> My Garage
         </h1>
         <p className="text-xs text-[var(--text-muted)]">
-          Manage your vehicles, service intervals, and Insurance / PUC / RC
-          renewal dates.
+          Manage your vehicles, Color UI hero avatars, service intervals, and
+          Insurance / PUC / RC renewal dates.
         </p>
       </div>
 
@@ -193,10 +296,11 @@ export default function GaragePage() {
           {vehicles.map((v) => {
             const isActive = activeVehicle?.id === v.id;
             const isEditing = editingId === v.id;
+            const currentCardAvatar = resolveVehicleAvatar(v);
 
             return (
               <div
-                key={v.id}
+                key={`${v.id}-${avatarTick}`}
                 className={`funky-card p-5 space-y-3 shrink-0 w-[300px] sm:w-[340px] snap-start ${
                   isActive ? "ring-2 ring-[var(--accent-primary)]" : ""
                 }`}
@@ -241,6 +345,14 @@ export default function GaragePage() {
                           className={inputClass}
                         />
                       </div>
+                    </div>
+
+                    <div className="pt-1 border-t border-[var(--border-subtle)]">
+                      <label className="text-[11px] font-extrabold flex items-center gap-1 text-[#025cbc] dark:text-[#3898ec]">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Hero Avatar (Color UI)</span>
+                      </label>
+                      {renderAvatarPickerGrid(editAvatar, setEditAvatar, true)}
                     </div>
 
                     <div className="pt-1 border-t border-[var(--border-subtle)] space-y-2">
@@ -312,24 +424,31 @@ export default function GaragePage() {
                   </div>
                 ) : (
                   <>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="text-xs font-extrabold text-[var(--text-muted)] truncate">
-                          {v.plate || "NO PLATE"} • {v.fuel_type}
+                    <div className="flex items-start justify-between gap-2.5">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <VehicleAvatar
+                          avatarKey={currentCardAvatar}
+                          vehicleId={v.id}
+                          className="w-14 h-14"
+                        />
+                        <div className="min-w-0">
+                          <div className="text-xs font-extrabold text-[var(--text-muted)] truncate">
+                            {v.plate || "NO PLATE"} • {v.fuel_type}
+                          </div>
+                          <h3 className="text-lg font-black truncate">
+                            {v.name}
+                          </h3>
+                          <p className="text-xs text-[var(--text-muted)] truncate">
+                            {v.manufacturer || v.wheeler_type} • {v.year}
+                          </p>
                         </div>
-                        <h3 className="text-lg font-black truncate">
-                          {v.name}
-                        </h3>
-                        <p className="text-xs text-[var(--text-muted)] truncate">
-                          {v.manufacturer || v.wheeler_type} • {v.year}
-                        </p>
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">
                         <button
                           type="button"
                           onClick={() => startEdit(v)}
-                          title="Edit Vehicle & Renewal Dates"
+                          title="Edit Vehicle, Avatar & Renewal Dates"
                           className="funky-btn p-2 rounded-full bg-[var(--accent-secondary)] cursor-pointer"
                         >
                           <Pencil className="w-3.5 h-3.5" />
@@ -517,6 +636,15 @@ export default function GaragePage() {
               ),
             )}
           </div>
+        </div>
+
+        {/* 6-Avatar Preset Selector for Color UI Hero Tile */}
+        <div className="pt-2 border-t border-[var(--border-subtle)]">
+          <label className="text-xs font-extrabold flex items-center gap-1.5 text-[#025cbc] dark:text-[#3898ec]">
+            <Sparkles className="w-4 h-4" />
+            <span>Hero Avatar (Visible on Color UI)</span>
+          </label>
+          {renderAvatarPickerGrid(selectedAvatar, setSelectedAvatar, false)}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

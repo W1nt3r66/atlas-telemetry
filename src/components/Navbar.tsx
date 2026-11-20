@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { calculateMaintenanceStatus } from "@/lib/maintenance";
+import { useDashboardTheme } from "@/hooks/useDashboardTheme";
 import AddEntryModal from "./AddEntryModal";
 import {
   LayoutDashboard,
@@ -18,6 +19,8 @@ import {
   Bell,
   LogOut,
   X,
+  Palette,
+  Layers,
 } from "lucide-react";
 
 function MotorsportTelemetryLogo() {
@@ -83,13 +86,32 @@ export default function Navbar() {
     logs,
     signOut,
   } = useApp();
+  const { enhancedTheme, setThemeMode } = useDashboardTheme();
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isThemeOpen, setIsThemeOpen] = useState(false);
   const [dailyBannerAlert, setDailyBannerAlert] = useState<{
     title: string;
     body: string;
   } | null>(null);
+
+  const themeMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onPointerDown = (e: MouseEvent) => {
+      if (
+        themeMenuRef.current &&
+        !themeMenuRef.current.contains(e.target as Node)
+      ) {
+        setIsThemeOpen(false);
+      }
+    };
+    if (isThemeOpen) {
+      document.addEventListener("mousedown", onPointerDown);
+    }
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [isThemeOpen]);
 
   const vehicleLogs = logs.filter((l) => l.vehicle_id === activeVehicle?.id);
   const latestOdo = Math.max(
@@ -179,24 +201,123 @@ export default function Navbar() {
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={toggleTheme}
-              title="Toggle Theme"
-              className="funky-btn p-2 rounded-full bg-[var(--accent-secondary)] cursor-pointer"
-            >
-              {theme === "light" ? (
-                <Moon className="w-4 h-4" />
-              ) : (
-                <Sun className="w-4 h-4" />
+            {/* Theme Button -> Dark/Light & Classic/Color UI */}
+            <div className="relative" ref={themeMenuRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsThemeOpen((prev) => !prev);
+                  setIsNotifOpen(false);
+                }}
+                aria-expanded={isThemeOpen}
+                title="Theme Settings"
+                className="funky-btn p-2 sm:px-3 sm:py-2 rounded-full bg-[var(--accent-secondary)] font-extrabold text-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                {theme === "light" ? (
+                  <Sun className="w-4 h-4 text-amber-500" />
+                ) : (
+                  <Moon className="w-4 h-4 text-[#3898ec]" />
+                )}
+                <span className="hidden sm:inline">Theme</span>
+              </button>
+
+              {isThemeOpen && (
+                <div className="glass-popover absolute right-0 mt-2.5 w-64 p-4 space-y-3.5 z-[60] text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-sm text-[var(--text-main)]">
+                      Theme
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsThemeOpen(false)}
+                      aria-label="Close theme menu"
+                      className="funky-btn p-1.5 rounded-full bg-[var(--accent-secondary)] cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Light / Dark Mode Toggle */}
+                  <div className="space-y-1.5">
+                    <div className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
+                      Mode
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-subtle)]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (theme !== "light") toggleTheme();
+                        }}
+                        className={`py-2 px-2.5 rounded-xl font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                          theme === "light"
+                            ? "funky-btn-primary"
+                            : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
+                        }`}
+                      >
+                        <Sun className="w-3.5 h-3.5" />
+                        <span>Light</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (theme !== "dark") toggleTheme();
+                        }}
+                        className={`py-2 px-2.5 rounded-xl font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                          theme === "dark"
+                            ? "funky-btn-primary"
+                            : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
+                        }`}
+                      >
+                        <Moon className="w-3.5 h-3.5" />
+                        <span>Dark</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Color UI / Classic UI Toggle */}
+                  <div className="space-y-1.5">
+                    <div className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
+                      UI Style
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-subtle)]">
+                      <button
+                        type="button"
+                        onClick={() => setThemeMode(true)}
+                        className={`py-2 px-2.5 rounded-xl font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                          enhancedTheme
+                            ? "funky-btn-primary"
+                            : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
+                        }`}
+                      >
+                        <Palette className="w-3.5 h-3.5" />
+                        <span>Color UI</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setThemeMode(false)}
+                        className={`py-2 px-2.5 rounded-xl font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                          !enhancedTheme
+                            ? "funky-btn-primary"
+                            : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
+                        }`}
+                      >
+                        <Layers className="w-3.5 h-3.5" />
+                        <span>Classic UI</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               )}
-            </button>
+            </div>
 
             {user && (
               <div className="relative">
                 <button
                   type="button"
-                  onClick={() => setIsNotifOpen(!isNotifOpen)}
+                  onClick={() => {
+                    setIsNotifOpen(!isNotifOpen);
+                    setIsThemeOpen(false);
+                  }}
                   title="Maintenance Alerts"
                   className="funky-btn p-2 rounded-full bg-[var(--accent-secondary)] relative cursor-pointer"
                 >

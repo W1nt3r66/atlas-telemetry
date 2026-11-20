@@ -10,6 +10,12 @@ import React, {
 import { usePathname, useRouter } from "next/navigation";
 import { User } from "@supabase/supabase-js";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import {
+  VehicleAvatarKey,
+  AVATAR_PRESETS,
+  getSavedVehicleAvatar,
+  saveVehicleAvatar,
+} from "@/components/VehicleAvatar";
 
 export type PowertrainType =
   | "Petrol"
@@ -27,6 +33,7 @@ export interface Vehicle {
   year: number;
   fuel_type: PowertrainType;
   wheeler_type: WheelerType;
+  avatar?: VehicleAvatarKey;
   tank_capacity?: number;
   initial_odo: number;
   service_interval_km: number;
@@ -67,6 +74,19 @@ const EMPTY_OWNER: OwnerProfile = {
   phone: "",
   city: "",
 };
+
+function normalizeAvatarKey(
+  rawAvatar: unknown,
+  vehicleId?: string,
+): VehicleAvatarKey {
+  if (
+    typeof rawAvatar === "string" &&
+    AVATAR_PRESETS.some((preset) => preset.key === rawAvatar)
+  ) {
+    return rawAvatar as VehicleAvatarKey;
+  }
+  return getSavedVehicleAvatar(vehicleId);
+}
 
 function cleanVehicleManufacturer(
   rawMakeModel: string,
@@ -233,15 +253,19 @@ function parseMotorlyGarageData(raw: any, fallbackEmail?: string) {
       v.manufacturer || fullMakeModel || "",
       displayName,
     );
+    const vehicleId = v.id || `motorly-v-${idx}`;
+    const resolvedAvatar = normalizeAvatarKey(v.avatar, vehicleId);
+    saveVehicleAvatar(vehicleId, resolvedAvatar);
 
     return {
-      id: v.id || `motorly-v-${idx}`,
+      id: vehicleId,
       name: displayName,
       plate: String(v.registration || v.plate || "").toUpperCase(),
       manufacturer: cleanedManufacturer,
       year: Number(v.year) || new Date().getFullYear(),
       fuel_type,
       wheeler_type,
+      avatar: resolvedAvatar,
       tank_capacity: Number(v.tank ?? v.tank_capacity ?? 0) || undefined,
       initial_odo: Number(v.initial_odo ?? v.odometer ?? 0),
       service_interval_km: Number(
@@ -385,7 +409,7 @@ interface AppContextType {
   addLog: (entry: Omit<LogEntry, "id">) => Promise<void>;
   updateLog: (id: string, updates: Partial<LogEntry>) => Promise<void>;
   deleteLog: (id: string) => Promise<void>;
-  addVehicle: (v: Omit<Vehicle, "id">) => Promise<void>;
+  addVehicle: (v: Omit<Vehicle, "id">) => Promise<Vehicle>;
   updateVehicle: (id: string, updates: Partial<Vehicle>) => void;
   deleteVehicle: (id: string) => void;
   clearAllData: () => void;
@@ -437,6 +461,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       const motorlyVehicles = nextVehicles.map((v) => {
         const cleanMake = cleanVehicleManufacturer(v.manufacturer, v.name);
+        const avatarKey = normalizeAvatarKey(v.avatar, v.id);
         return {
           id: v.id,
           nickname: v.name,
@@ -446,6 +471,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           year: String(v.year),
           registration: v.plate,
           fuelType: v.fuel_type,
+          wheeler_type: v.wheeler_type,
+          avatar: avatarKey,
           tank: v.tank_capacity ? String(v.tank_capacity) : "",
           type: v.wheeler_type === "2-Wheeler" ? "bike" : "car",
           serviceInterval: String(v.service_interval_km),
@@ -596,7 +623,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const cachedVehicles = JSON.parse(
+      const cachedVehicles: Vehicle[] = JSON.parse(
         localStorage.getItem("atlas_vehicles") || "[]",
       );
       const cachedLogs = JSON.parse(localStorage.getItem("atlas_logs") || "[]");
@@ -604,8 +631,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         localStorage.getItem("atlas_owner") || "null",
       );
       if (Array.isArray(cachedVehicles) && cachedVehicles.length > 0) {
-        setVehicles(cachedVehicles);
-        setActiveVehicleId(cachedVehicles[0].id);
+        const hydratedVehicles = cachedVehicles.map((v) => ({
+          ...v,
+          avatar: normalizeAvatarKey(v.avatar, v.id),
+        }));
+        setVehicles(hydratedVehicles);
+        setActiveVehicleId(hydratedVehicles[0].id);
       }
       if (Array.isArray(cachedLogs) && cachedLogs.length > 0) {
         setLogs(recalculateAllFuelMileages(cachedLogs, cachedVehicles));
@@ -774,19 +805,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await pushToSupabase(user, vehicles, updatedLogs, owner, rawGarageBlob);
   };
 
-  const addVehicle = async (v: Omit<Vehicle, "id">) => {
-    const newVehicle: Vehicle = { ...v, id: "veh-" + Date.now() };
+  const addVehicle = async (v: Omit<Vehicle, "id">): Promise<Vehicle> => {
+    const id = "veh-" + Date.now();
+    const resolvedAvatar = normalizeAvatarKey(v.avatar, id);
+    saveVehicleAvatar(id, resolvedAvatar);
+
+    const newVehicle: Vehicle = {
+      ...v,
+      id,
+      avatar: resolvedAvatar,
+    };
     const updated = [...vehicles, newVehicle];
     setVehicles(updated);
     setActiveVehicleId(newVehicle.id);
     localStorage.setItem("atlas_vehicles", JSON.stringify(updated));
     await pushToSupabase(user, updated, logs, owner, rawGarageBlob);
+    return newVehicle;
   };
 
   const updateVehicle = (id: string, updates: Partial<Vehicle>) => {
-    const updated = vehicles.map((v) =>
-      v.id === id ? { ...v, ...updates } : v,
-    );
+    const updated = vehicles.map((v) => {
+      if (v.id !== id) return v;
+      const nextAvatar = updates.avatar
+        ? normalizeAvatarKey(updates.avatar, id)
+        : normalizeAvatarKey(v.avatar, id);
+      if (updates.avatar) {
+        saveVehicleAvatar(id, nextAvatar);
+      }
+      return {
+        ...v,
+        ...updates,
+        avatar: nextAvatar,
+      };
+    });
     const recalculatedLogs = recalculateAllFuelMileages(logs, updated);
     setVehicles(updated);
     setLogs(recalculatedLogs);

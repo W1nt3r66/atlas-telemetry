@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { useApp } from "@/context/AppContext";
+import { useApp, LogEntry } from "@/context/AppContext";
 import { calculateMaintenanceStatus } from "@/lib/maintenance";
+import VehicleAvatar from "@/components/VehicleAvatar";
+import { useDashboardTheme } from "@/hooks/useDashboardTheme";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -19,6 +21,13 @@ import {
   ShieldCheck,
   Gauge,
 } from "lucide-react";
+
+const TELEMETRY_DOT: Record<LogEntry["type"], string> = {
+  fuel: "#0e84eb",
+  expense: "#6366f1",
+  service: "#10b981",
+  wash: "#f59e0b",
+};
 
 function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180;
@@ -117,6 +126,7 @@ export default function DashboardPage() {
     deleteLog,
     owner,
   } = useApp();
+  const { enhancedTheme } = useDashboardTheme();
 
   const [quickModalType, setQuickModalType] = useState<
     "wash" | "service" | null
@@ -242,7 +252,6 @@ export default function DashboardPage() {
     0,
   );
 
-  // Cost-Per-Kilometer & Ownership Economics
   const totalFuelSpend = fuelLogs.reduce(
     (sum, l) => sum + Number(l.amount || 0),
     0,
@@ -264,7 +273,6 @@ export default function DashboardPage() {
   const fuelShareOfCostPct =
     totalAllSpend > 0 ? Math.round((totalFuelSpend / totalAllSpend) * 100) : 0;
 
-  // Compliance & Renewal Dates
   const renewalItems = [
     {
       label: "Insurance",
@@ -308,7 +316,6 @@ export default function DashboardPage() {
     ? Math.min(100, Math.max(0, (kmSinceService / serviceIntervalKm) * 100))
     : 0;
 
-  // Analog Sport Instrument Cluster Geometry (220° Sweep: -110° to +110°, 0 to 30 km/l)
   const dialCx = 110;
   const dialCy = 92;
   const startAngle = -110;
@@ -406,6 +413,8 @@ export default function DashboardPage() {
   ).split(" ")[0];
 
   const latestLog = vLogs[0] || null;
+  const vehicleAvatarKey =
+    (activeVehicle as { avatar?: string | null } | null)?.avatar || null;
 
   return (
     <>
@@ -476,10 +485,36 @@ export default function DashboardPage() {
         )}
 
         {/* Hero Vehicle Banner */}
-        <div className="funky-card p-5 sm:p-6 relative overflow-hidden">
-          <div className="flex items-end justify-between gap-3">
+        <div
+          style={
+            enhancedTheme
+              ? {
+                  backgroundImage:
+                    "radial-gradient(circle at 92% 20%, rgba(56, 152, 236, 0.14) 0%, transparent 60%)",
+                }
+              : undefined
+          }
+          className="funky-card p-5 sm:p-6 min-h-[126px] sm:min-h-[140px] relative overflow-hidden flex items-end"
+        >
+          {enhancedTheme && activeVehicle && (
+            <div className="pointer-events-none select-none absolute inset-y-0 left-[34%] sm:left-[35%] right-0 flex items-end justify-end z-0">
+              <VehicleAvatar
+                avatarKey={vehicleAvatarKey}
+                vehicleId={activeVehicle.id}
+                className="w-full h-full"
+              />
+            </div>
+          )}
+
+          <div className="relative z-10 w-full flex items-end justify-between gap-3">
             <div className="space-y-1 min-w-0 flex-1">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)] text-[11px] font-extrabold max-w-full">
+              <div
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold max-w-full border ${
+                  enhancedTheme
+                    ? "bg-[#0e84eb]/12 border-[#0e84eb]/30 text-[#025cbc] dark:text-[#60a5fa]"
+                    : "bg-[var(--accent-secondary)] border-[var(--border-color)]"
+                }`}
+              >
                 <Sparkles className="w-3 h-3 shrink-0" />
                 <span className="truncate">
                   {activeVehicle
@@ -497,13 +532,19 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            <div className="text-right shrink-0">
-              <div className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)] mb-1">
+            <div className="relative z-20 text-right shrink-0">
+              <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#081526] dark:text-slate-100 mb-0.5">
                 Odometer
               </div>
-              <div className="text-2xl sm:text-3xl font-black tabular-nums leading-none">
+              <div className="text-2xl sm:text-3xl font-black tabular-nums leading-none text-[#06101e] dark:text-white">
                 {latestOdo.toLocaleString()}{" "}
-                <span className="text-xs sm:text-sm font-bold text-[var(--text-muted)]">
+                <span
+                  className={`text-xs sm:text-sm font-extrabold ${
+                    enhancedTheme
+                      ? "text-[#025cbc] dark:text-[#3898ec]"
+                      : "font-bold text-[var(--text-muted)]"
+                  }`}
+                >
                   km
                 </span>
               </div>
@@ -525,16 +566,30 @@ export default function DashboardPage() {
                   className="w-full h-full overflow-visible"
                 >
                   <defs>
-                    <linearGradient
-                      id="atlasClusterGrad"
-                      x1="0%"
-                      y1="0%"
-                      x2="100%"
-                      y2="0%"
-                    >
-                      <stop offset="0%" stopColor="#3898ec" />
-                      <stop offset="100%" stopColor="#025cbc" />
-                    </linearGradient>
+                    {enhancedTheme ? (
+                      <linearGradient
+                        id="atlasClusterGrad"
+                        x1="0%"
+                        y1="0%"
+                        x2="100%"
+                        y2="0%"
+                      >
+                        <stop offset="0%" stopColor="#f59e0b" />
+                        <stop offset="48%" stopColor="#3898ec" />
+                        <stop offset="100%" stopColor="#10b981" />
+                      </linearGradient>
+                    ) : (
+                      <linearGradient
+                        id="atlasClusterGrad"
+                        x1="0%"
+                        y1="0%"
+                        x2="100%"
+                        y2="0%"
+                      >
+                        <stop offset="0%" stopColor="#3898ec" />
+                        <stop offset="100%" stopColor="#025cbc" />
+                      </linearGradient>
+                    )}
                     <filter
                       id="needleGlow"
                       x="-30%"
@@ -566,6 +621,13 @@ export default function DashboardPage() {
                       angle,
                     );
                     const isLit = idx <= Math.round(avgMileageNum);
+                    const tickColor = enhancedTheme
+                      ? idx >= 18
+                        ? "#10b981"
+                        : idx >= 10
+                          ? "#3898ec"
+                          : "#f59e0b"
+                      : "#3898ec";
 
                     return (
                       <line
@@ -574,7 +636,7 @@ export default function DashboardPage() {
                         y1={pInner.y}
                         x2={pOuter.x}
                         y2={pOuter.y}
-                        stroke={isLit ? "#3898ec" : "currentColor"}
+                        stroke={isLit ? tickColor : "currentColor"}
                         strokeOpacity={isLit ? 0.95 : isMajor ? 0.45 : 0.22}
                         strokeWidth={isMajor ? 2 : 1.1}
                         strokeLinecap="round"
@@ -626,7 +688,7 @@ export default function DashboardPage() {
                     y1={needleBase.y}
                     x2={needleTip.x}
                     y2={needleTip.y}
-                    stroke="#3898ec"
+                    stroke={enhancedTheme ? "#f43f5e" : "#3898ec"}
                     strokeWidth="2.8"
                     strokeLinecap="round"
                     filter="url(#needleGlow)"
@@ -637,15 +699,36 @@ export default function DashboardPage() {
                   <div className="text-3xl font-black tabular-nums leading-none tracking-tight">
                     {avgMileage}
                   </div>
-                  <div className="text-[9.5px] font-extrabold uppercase tracking-[0.18em] text-[var(--text-muted)] mt-1">
+                  <div
+                    className={`text-[9.5px] font-extrabold uppercase tracking-[0.18em] mt-1 ${
+                      enhancedTheme
+                        ? "text-[#025cbc] dark:text-[#3898ec]"
+                        : "text-[var(--text-muted)]"
+                    }`}
+                  >
                     Avg km/l
                   </div>
                 </div>
               </div>
 
               <div className="mt-2 pt-2.5 border-t border-[var(--border-subtle)] w-full flex items-center justify-between text-[11px] font-bold text-[var(--text-muted)] px-1">
-                <span>Last: {latestMileage} km/l</span>
-                <span className="flex items-center gap-1">
+                <span>
+                  Last:{" "}
+                  <strong
+                    className={
+                      enhancedTheme
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "font-bold"
+                    }
+                  >
+                    {latestMileage} km/l
+                  </strong>
+                </span>
+                <span
+                  className={`flex items-center gap-1 ${
+                    enhancedTheme ? "text-[#025cbc] dark:text-[#60a5fa]" : ""
+                  }`}
+                >
                   <Fuel className="w-3 h-3" />
                   {totalFuelLiters.toFixed(0)} L
                 </span>
@@ -719,7 +802,13 @@ export default function DashboardPage() {
                         cy="22"
                         r="18"
                         fill="none"
-                        stroke="#0e84eb"
+                        stroke={
+                          enhancedTheme
+                            ? maint?.isWashDue
+                              ? "#f59e0b"
+                              : "#0ea5e9"
+                            : "#0e84eb"
+                        }
                         strokeWidth="4"
                         strokeLinecap="round"
                         strokeDasharray={ringCircumference}
@@ -727,7 +816,15 @@ export default function DashboardPage() {
                         className="transition-all duration-700"
                       />
                     </svg>
-                    <Droplets className="w-4 h-4 absolute text-[#025cbc] dark:text-[#3898ec]" />
+                    <Droplets
+                      className={`w-4 h-4 absolute ${
+                        enhancedTheme
+                          ? maint?.isWashDue
+                            ? "text-amber-500"
+                            : "text-sky-600 dark:text-sky-400"
+                          : "text-[#025cbc] dark:text-[#3898ec]"
+                      }`}
+                    />
                   </div>
 
                   <div>
@@ -747,7 +844,11 @@ export default function DashboardPage() {
                     type="button"
                     disabled={!activeVehicle}
                     onClick={(e) => openQuickCareModal(e, "wash")}
-                    className="funky-btn w-full py-1 px-2 rounded-full bg-white/30 dark:bg-white/10 text-[10px] font-extrabold flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
+                    className={`funky-btn w-full py-1 px-2 rounded-full text-[10px] font-extrabold flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 ${
+                      enhancedTheme
+                        ? "bg-sky-500/12 border-sky-400/35 text-sky-700 dark:text-sky-300"
+                        : "bg-white/30 dark:bg-white/10"
+                    }`}
                   >
                     <CheckCircle2 className="w-2.5 h-2.5" />
                     <span>Washed</span>
@@ -778,7 +879,13 @@ export default function DashboardPage() {
                         cy="22"
                         r="18"
                         fill="none"
-                        stroke="#025cbc"
+                        stroke={
+                          enhancedTheme
+                            ? maint?.isServiceDue
+                              ? "#f43f5e"
+                              : "#10b981"
+                            : "#025cbc"
+                        }
                         strokeWidth="4"
                         strokeLinecap="round"
                         strokeDasharray={ringCircumference}
@@ -786,7 +893,15 @@ export default function DashboardPage() {
                         className="transition-all duration-700"
                       />
                     </svg>
-                    <Wrench className="w-4 h-4 absolute text-[#025cbc] dark:text-[#3898ec]" />
+                    <Wrench
+                      className={`w-4 h-4 absolute ${
+                        enhancedTheme
+                          ? maint?.isServiceDue
+                            ? "text-rose-500"
+                            : "text-emerald-600 dark:text-emerald-400"
+                          : "text-[#025cbc] dark:text-[#3898ec]"
+                      }`}
+                    />
                   </div>
 
                   <div>
@@ -808,7 +923,11 @@ export default function DashboardPage() {
                     type="button"
                     disabled={!activeVehicle}
                     onClick={(e) => openQuickCareModal(e, "service")}
-                    className="funky-btn w-full py-1 px-2 rounded-full bg-white/30 dark:bg-white/10 text-[10px] font-extrabold flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
+                    className={`funky-btn w-full py-1 px-2 rounded-full text-[10px] font-extrabold flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 ${
+                      enhancedTheme
+                        ? "bg-emerald-500/12 border-emerald-400/35 text-emerald-700 dark:text-emerald-300"
+                        : "bg-white/30 dark:bg-white/10"
+                    }`}
                   >
                     <CheckCircle2 className="w-2.5 h-2.5" />
                     <span>Serviced</span>
@@ -832,14 +951,33 @@ export default function DashboardPage() {
                   <Gauge className="w-4 h-4 text-[#025cbc] dark:text-[#3898ec]" />
                   Running Economics
                 </span>
-                <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)] tabular-nums">
+                <span
+                  className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border tabular-nums ${
+                    enhancedTheme
+                      ? "bg-[#0e84eb]/12 text-[#025cbc] dark:text-[#60a5fa] border-[#0e84eb]/30"
+                      : "bg-[var(--accent-secondary)] border-[var(--border-color)]"
+                  }`}
+                >
                   {trackedDistance.toLocaleString()} km tracked
                 </span>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-color)]">
-                  <div className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
+                <div
+                  style={
+                    enhancedTheme
+                      ? { borderLeftWidth: "3px", borderLeftColor: "#0e84eb" }
+                      : undefined
+                  }
+                  className="p-3 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-color)]"
+                >
+                  <div
+                    className={`text-[10px] font-extrabold uppercase tracking-wider ${
+                      enhancedTheme
+                        ? "text-[#025cbc] dark:text-[#60a5fa]"
+                        : "text-[var(--text-muted)]"
+                    }`}
+                  >
                     Fuel Cost / km
                   </div>
                   <div className="text-xl sm:text-2xl font-black tabular-nums mt-0.5">
@@ -853,8 +991,21 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <div className="p-3 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-color)]">
-                  <div className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
+                <div
+                  style={
+                    enhancedTheme
+                      ? { borderLeftWidth: "3px", borderLeftColor: "#6366f1" }
+                      : undefined
+                  }
+                  className="p-3 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-color)]"
+                >
+                  <div
+                    className={`text-[10px] font-extrabold uppercase tracking-wider ${
+                      enhancedTheme
+                        ? "text-indigo-600 dark:text-indigo-400"
+                        : "text-[var(--text-muted)]"
+                    }`}
+                  >
                     All-In Ownership
                   </div>
                   <div className="text-xl sm:text-2xl font-black tabular-nums mt-0.5">
@@ -872,20 +1023,38 @@ export default function DashboardPage() {
 
               {/* Fuel vs Care Cost Ratio Bar */}
               <div className="space-y-1">
-                <div className="flex justify-between text-[10px] font-extrabold text-[var(--text-muted)]">
-                  <span>Fuel ({fuelShareOfCostPct}%)</span>
-                  <span>
+                <div className="flex justify-between text-[10px] font-extrabold">
+                  <span
+                    className={
+                      enhancedTheme
+                        ? "text-[#025cbc] dark:text-[#60a5fa]"
+                        : "text-[var(--text-muted)]"
+                    }
+                  >
+                    Fuel ({fuelShareOfCostPct}%)
+                  </span>
+                  <span
+                    className={
+                      enhancedTheme
+                        ? "text-indigo-600 dark:text-indigo-400"
+                        : "text-[var(--text-muted)]"
+                    }
+                  >
                     Parts, Service &amp; Wash (
                     {totalAllSpend > 0 ? 100 - fuelShareOfCostPct : 0}%)
                   </span>
                 </div>
                 <div className="w-full h-2 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden border border-[var(--border-color)] flex">
                   <div
-                    className="h-full bg-[#3898ec] transition-all duration-500"
+                    className={`h-full transition-all duration-500 ${
+                      enhancedTheme ? "bg-[#0e84eb]" : "bg-[#3898ec]"
+                    }`}
                     style={{ width: `${fuelShareOfCostPct}%` }}
                   />
                   <div
-                    className="h-full bg-[#025cbc] transition-all duration-500"
+                    className={`h-full transition-all duration-500 ${
+                      enhancedTheme ? "bg-[#6366f1]" : "bg-[#025cbc]"
+                    }`}
                     style={{
                       width: `${totalAllSpend > 0 ? 100 - fuelShareOfCostPct : 0}%`,
                     }}
@@ -894,11 +1063,17 @@ export default function DashboardPage() {
               </div>
             </Link>
 
-            {/* Compliance & Renewal Dates Vault (Dates + Reminders Only) */}
+            {/* Compliance & Renewal Dates Vault */}
             <div className="funky-card p-5 flex flex-col justify-between gap-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-black text-sm flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-[#025cbc] dark:text-[#3898ec]" />
+                  <ShieldCheck
+                    className={`w-4 h-4 ${
+                      enhancedTheme
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-[#025cbc] dark:text-[#3898ec]"
+                    }`}
+                  />
                   Renewal Dates
                 </span>
                 <Link
@@ -962,20 +1137,40 @@ export default function DashboardPage() {
                     Recent Logs
                   </h2>
                   {vLogs.length > 0 && (
-                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)] tabular-nums">
+                    <span
+                      className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border tabular-nums ${
+                        enhancedTheme
+                          ? "bg-[#0e84eb]/12 text-[#025cbc] dark:text-[#60a5fa] border-[#0e84eb]/30"
+                          : "bg-[var(--accent-secondary)] border-[var(--border-color)]"
+                      }`}
+                    >
                       {vLogs.length}
                     </span>
                   )}
                 </div>
                 {!logsExpanded && (
-                  <p className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">
-                    {latestLog
-                      ? `Latest: ${latestLog.category} • ${latestLog.date}${
-                          latestLog.amount > 0
+                  <p className="text-[11px] text-[var(--text-muted)] truncate mt-0.5 flex items-center gap-1.5">
+                    {latestLog ? (
+                      <>
+                        {enhancedTheme && (
+                          <span
+                            className="w-1.5 h-1.5 rounded-full shrink-0"
+                            style={{
+                              backgroundColor:
+                                TELEMETRY_DOT[latestLog.type] || "#6366f1",
+                            }}
+                          />
+                        )}
+                        <span className="truncate">
+                          Latest: {latestLog.category} • {latestLog.date}
+                          {latestLog.amount > 0
                             ? ` • ₹${latestLog.amount.toLocaleString()}`
-                            : ""
-                        }`
-                      : "No logs recorded yet"}
+                            : ""}
+                        </span>
+                      </>
+                    ) : (
+                      "No logs recorded yet"
+                    )}
                   </p>
                 )}
               </div>
@@ -1013,18 +1208,29 @@ export default function DashboardPage() {
                       key={item.id}
                       className="py-2.5 flex items-center justify-between gap-2.5 text-xs"
                     >
-                      <div className="min-w-0 flex-1">
-                        <div className="font-extrabold truncate">
-                          {item.category}
-                          {item.calculated_mileage
-                            ? ` • ${item.calculated_mileage} km/l`
-                            : ""}
-                        </div>
-                        <div className="text-[11px] text-[var(--text-muted)] truncate">
-                          {item.date}
-                          {item.odo_reading
-                            ? ` • ${item.odo_reading.toLocaleString()} km`
-                            : ""}
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        {enhancedTheme && (
+                          <span
+                            className="w-2 h-2 rounded-full shrink-0"
+                            style={{
+                              backgroundColor:
+                                TELEMETRY_DOT[item.type] || "#6366f1",
+                            }}
+                          />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="font-extrabold truncate">
+                            {item.category}
+                            {item.calculated_mileage
+                              ? ` • ${item.calculated_mileage} km/l`
+                              : ""}
+                          </div>
+                          <div className="text-[11px] text-[var(--text-muted)] truncate">
+                            {item.date}
+                            {item.odo_reading
+                              ? ` • ${item.odo_reading.toLocaleString()} km`
+                              : ""}
+                          </div>
                         </div>
                       </div>
 
