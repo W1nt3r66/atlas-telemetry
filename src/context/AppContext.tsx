@@ -98,6 +98,7 @@ function recalculateAllFuelMileages(
     initialOdoByVehicle[v.id] = Number(v.initial_odo || 0);
   });
 
+  // Sort chronologically by date ascending, then odometer ascending
   const fuelLogs = allLogs
     .filter((l) => l.type === "fuel")
     .sort((a, b) => {
@@ -129,7 +130,8 @@ function recalculateAllFuelMileages(
       mileageById[entry.id] = null;
     }
 
-    if (odo > prevOdo) {
+    // Always track the immediately preceding fill's odometer (when > 0)
+    if (odo > 0) {
       lastOdoByVehicle[vId] = odo;
     }
   }
