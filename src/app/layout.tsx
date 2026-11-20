@@ -7,7 +7,7 @@ import LaunchSplash from "@/components/LaunchSplash";
 
 export const metadata: Metadata = {
   title: "Atlas — Telemetry, Mileage & Garage",
-  description: "Minimal F1-inspired car telemetry, mileage & convoy app",
+  description: "Minimal F1-inspired car telemetry, mileage & garage app",
   applicationName: "Atlas",
   appleWebApp: {
     capable: true,
