@@ -11,6 +11,8 @@ import {
   LocateFixed,
   Loader2,
   X,
+  Pencil,
+  RotateCcw,
 } from "lucide-react";
 
 interface PlaceSuggestion {
@@ -161,6 +163,7 @@ export default function TripCalculatorPage() {
   const [loadingDestSug, setLoadingDestSug] = useState(false);
 
   const [fuelPrice, setFuelPrice] = useState("");
+  const [isEditingFuelPrice, setIsEditingFuelPrice] = useState(false);
   const [roundTrip, setRoundTrip] = useState(false);
 
   const [oneWayKm, setOneWayKm] = useState<number>(0);
@@ -169,7 +172,37 @@ export default function TripCalculatorPage() {
 
   const originWrapRef = useRef<HTMLDivElement | null>(null);
   const destWrapRef = useRef<HTMLDivElement | null>(null);
+  const fuelInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Derive latest fuel rate (₹/L) from active vehicle's most recent fuel log
+  const vehicleFuelLogs = activeVehicle
+    ? [...logs]
+        .filter(
+          (l) =>
+            l.vehicle_id === activeVehicle.id &&
+            l.type === "fuel" &&
+            Number(l.amount) > 0 &&
+            Number(l.fuel_liters || 0) > 0,
+        )
+        .sort((a, b) => {
+          const dateCmp = String(b.date || "").localeCompare(
+            String(a.date || ""),
+          );
+          if (dateCmp !== 0) return dateCmp;
+          return Number(b.odo_reading || 0) - Number(a.odo_reading || 0);
+        })
+    : [];
+
+  const latestFuelLog = vehicleFuelLogs[0] || null;
+  const lastLoggedFuelRate = latestFuelLog
+    ? Number(
+        (
+          Number(latestFuelLog.amount) / Number(latestFuelLog.fuel_liters)
+        ).toFixed(2),
+      )
+    : null;
+
+  // Sync default fuel price from last fill whenever vehicle/logs load unless user is manually editing
   useEffect(() => {
     if (!user) {
       setOrigin("");
@@ -177,11 +210,21 @@ export default function TripCalculatorPage() {
       setDestination("");
       setDestCoords(null);
       setFuelPrice("");
+      setIsEditingFuelPrice(false);
       setRoundTrip(false);
       setOneWayKm(0);
       setErrorMsg("");
+      return;
     }
-  }, [user]);
+
+    if (!isEditingFuelPrice) {
+      if (lastLoggedFuelRate !== null) {
+        setFuelPrice(lastLoggedFuelRate.toFixed(2));
+      } else {
+        setFuelPrice("");
+      }
+    }
+  }, [user, activeVehicle?.id, lastLoggedFuelRate, isEditingFuelPrice]);
 
   useEffect(() => {
     const handleOutside = (e: PointerEvent) => {
@@ -234,6 +277,23 @@ export default function TripCalculatorPage() {
 
     return () => clearTimeout(timer);
   }, [destination, destCoords]);
+
+  const handleEnableManualFuelEdit = () => {
+    setIsEditingFuelPrice(true);
+    setTimeout(() => {
+      fuelInputRef.current?.focus();
+      fuelInputRef.current?.select();
+    }, 20);
+  };
+
+  const handleResetToLastFuelRate = () => {
+    setIsEditingFuelPrice(false);
+    if (lastLoggedFuelRate !== null) {
+      setFuelPrice(lastLoggedFuelRate.toFixed(2));
+    } else {
+      setFuelPrice("");
+    }
+  };
 
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -363,6 +423,8 @@ export default function TripCalculatorPage() {
 
   const inputClass =
     "w-full mt-1.5 px-3.5 py-2.5 pr-9 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-input)] text-[var(--text-main)] text-[16px] sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#0e84eb]/40";
+
+  const canEditFuel = isEditingFuelPrice || lastLoggedFuelRate === null;
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
@@ -527,19 +589,58 @@ export default function TripCalculatorPage() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+          {/* Fuel Rate Auto-Synced from Last Fill + Manual Edit Button */}
           <div>
-            <label className="text-xs font-bold">Fuel Rate (₹/Liter)</label>
-            <input
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="0.01"
-              value={fuelPrice}
-              onWheel={(e) => e.currentTarget.blur()}
-              onChange={(e) => setFuelPrice(e.target.value.replace(/-/g, ""))}
-              placeholder="Fuel rate in INR"
-              className="w-full mt-1.5 px-3.5 py-2.5 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-input)] text-[var(--text-main)] text-[16px] sm:text-sm font-medium focus:outline-none"
-            />
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-xs font-bold">Fuel Rate (₹/Liter)</label>
+
+              {lastLoggedFuelRate !== null &&
+                (!isEditingFuelPrice ? (
+                  <button
+                    type="button"
+                    onClick={handleEnableManualFuelEdit}
+                    className="inline-flex items-center gap-1 text-[11px] font-extrabold text-[#025cbc] dark:text-[#3898ec] hover:opacity-80 cursor-pointer"
+                  >
+                    <Pencil className="w-3 h-3" />
+                    <span>Edit Rate</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleResetToLastFuelRate}
+                    className="inline-flex items-center gap-1 text-[11px] font-extrabold text-[var(--text-muted)] hover:text-[var(--text-main)] cursor-pointer"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Use Last (₹{lastLoggedFuelRate.toFixed(2)})</span>
+                  </button>
+                ))}
+            </div>
+
+            <div className="relative">
+              <input
+                ref={fuelInputRef}
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                readOnly={!canEditFuel}
+                value={fuelPrice}
+                onWheel={(e) => e.currentTarget.blur()}
+                onChange={(e) => setFuelPrice(e.target.value.replace(/-/g, ""))}
+                placeholder="Fuel rate in INR"
+                className={`w-full mt-1.5 px-3.5 py-2.5 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-input)] text-[var(--text-main)] text-[16px] sm:text-sm font-medium focus:outline-none ${
+                  !canEditFuel
+                    ? "pr-24 opacity-90 cursor-default"
+                    : "focus:ring-2 focus:ring-[#0e84eb]/40"
+                }`}
+              />
+
+              {!canEditFuel && latestFuelLog && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 mt-0.5 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)] text-[var(--text-muted)] pointer-events-none">
+                  Last fill
+                </span>
+              )}
+            </div>
           </div>
 
           <button

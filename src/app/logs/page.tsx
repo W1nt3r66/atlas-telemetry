@@ -19,6 +19,7 @@ function LogsContent() {
   const searchParams = useSearchParams();
   const { activeVehicle, logs, updateLog, deleteLog, owner } = useApp();
   const [filterType, setFilterType] = useState<FilterTab>("all");
+  const [activeSliceIdx, setActiveSliceIdx] = useState<number | null>(null);
 
   // Edit modal state
   const [editingEntry, setEditingEntry] = useState<LogEntry | null>(null);
@@ -172,6 +173,7 @@ function LogsContent() {
         },${lineBottom + 6}`
       : "";
 
+  // Category Expense Split Breakdown & Donut Geometry
   const totalSpend = vehicleLogs.reduce(
     (sum, l) => sum + Number(l.amount || 0),
     0,
@@ -189,12 +191,63 @@ function LogsContent() {
     .filter((l) => l.type === "wash")
     .reduce((sum, l) => sum + Number(l.amount || 0), 0);
 
-  const splitBuckets = [
-    { label: "Fuel", amount: fuelSpend },
-    { label: "Parts & Accessories", amount: partsSpend },
-    { label: "Service", amount: serviceSpend },
-    { label: "Wash & Care", amount: washSpend },
+  const rawBuckets = [
+    {
+      label: "Fuel",
+      shortLabel: "Fuel",
+      amount: fuelSpend,
+      color: "#3898ec",
+      filterTab: "fuel" as FilterTab,
+    },
+    {
+      label: "Parts & Accessories",
+      shortLabel: "Parts",
+      amount: partsSpend,
+      color: "#025cbc",
+      filterTab: "expense" as FilterTab,
+    },
+    {
+      label: "Service",
+      shortLabel: "Service",
+      amount: serviceSpend,
+      color: "#34d399",
+      filterTab: "service" as FilterTab,
+    },
+    {
+      label: "Wash & Care",
+      shortLabel: "Wash",
+      amount: washSpend,
+      color: "#fbbf24",
+      filterTab: "wash" as FilterTab,
+    },
   ].filter((b) => b.amount > 0);
+
+  const donutRadius = 42;
+  const donutCircumference = 2 * Math.PI * donutRadius;
+  let accumulatedPct = 0;
+
+  const donutSlices = rawBuckets.map((bucket) => {
+    const exactPct = totalSpend > 0 ? (bucket.amount / totalSpend) * 100 : 0;
+    const roundedPct = Math.round(exactPct);
+    const dashLength = (exactPct / 100) * donutCircumference;
+    const gap = rawBuckets.length > 1 ? 2.5 : 0;
+    const strokeDasharray = `${Math.max(0, dashLength - gap).toFixed(2)} ${donutCircumference.toFixed(2)}`;
+    const strokeDashoffset = -((accumulatedPct / 100) * donutCircumference);
+    accumulatedPct += exactPct;
+
+    return {
+      ...bucket,
+      exactPct,
+      roundedPct,
+      strokeDasharray,
+      strokeDashoffset,
+    };
+  });
+
+  const focusedSlice =
+    activeSliceIdx !== null && donutSlices[activeSliceIdx]
+      ? donutSlices[activeSliceIdx]
+      : null;
 
   const exportPdf = () => {
     const win = window.open("", "_blank", "width=900,height=700");
@@ -290,7 +343,7 @@ function LogsContent() {
           </button>
         </div>
 
-        {/* Synchronized Dual-Track Mileage & Fuel Chart + Expense Split */}
+        {/* Synchronized Dual-Track Mileage & Fuel Chart + Interactive Donut Pie Chart */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="funky-card p-5 space-y-2.5">
             <div className="flex items-center justify-between gap-2">
@@ -457,8 +510,8 @@ function LogsContent() {
             )}
           </div>
 
-          {/* Category Expense Split */}
-          <div className="funky-card p-5 space-y-3">
+          {/* Interactive Donut Pie Chart Expense Split */}
+          <div className="funky-card p-5 flex flex-col justify-between gap-3">
             <div className="flex items-center justify-between">
               <span className="font-black text-sm flex items-center gap-1.5">
                 <PieChart className="w-4 h-4" /> Expense Split
@@ -468,34 +521,135 @@ function LogsContent() {
               </span>
             </div>
 
-            {splitBuckets.length === 0 ? (
-              <div className="h-36 flex items-center justify-center text-xs text-[var(--text-muted)]">
+            {donutSlices.length === 0 ? (
+              <div className="h-44 flex items-center justify-center text-xs text-[var(--text-muted)]">
                 No expenses recorded yet.
               </div>
             ) : (
-              <div className="space-y-2.5 pt-1">
-                {splitBuckets.map((bucket) => {
-                  const pct =
-                    totalSpend > 0
-                      ? Math.round((bucket.amount / totalSpend) * 100)
-                      : 0;
-                  return (
-                    <div key={bucket.label} className="space-y-1 text-xs">
-                      <div className="flex items-center justify-between font-extrabold">
-                        <span>{bucket.label}</span>
-                        <span className="tabular-nums">
-                          ₹{bucket.amount.toLocaleString()} ({pct}%)
+              <div className="grid grid-cols-12 gap-3 items-center my-auto">
+                {/* Left: Interactive SVG Donut Ring */}
+                <div className="col-span-5 flex items-center justify-center">
+                  <div className="relative w-32 h-32 flex items-center justify-center">
+                    <svg
+                      viewBox="0 0 112 112"
+                      className="w-full h-full -rotate-90 overflow-visible"
+                    >
+                      {/* Subtle Base Track */}
+                      <circle
+                        cx="56"
+                        cy="56"
+                        r={donutRadius}
+                        fill="none"
+                        stroke="currentColor"
+                        strokeOpacity="0.1"
+                        strokeWidth="15"
+                      />
+
+                      {donutSlices.map((slice, idx) => {
+                        const isSelected = activeSliceIdx === idx;
+                        return (
+                          <circle
+                            key={slice.label}
+                            cx="56"
+                            cy="56"
+                            r={donutRadius}
+                            fill="none"
+                            stroke={slice.color}
+                            strokeWidth={isSelected ? "18" : "15"}
+                            strokeDasharray={slice.strokeDasharray}
+                            strokeDashoffset={slice.strokeDashoffset}
+                            strokeLinecap="butt"
+                            onClick={() =>
+                              setActiveSliceIdx((prev) =>
+                                prev === idx ? null : idx,
+                              )
+                            }
+                            onMouseEnter={() => setActiveSliceIdx(idx)}
+                            onMouseLeave={() => setActiveSliceIdx(null)}
+                            className="transition-all duration-300 cursor-pointer"
+                            style={{
+                              opacity:
+                                activeSliceIdx === null || isSelected
+                                  ? 1
+                                  : 0.45,
+                            }}
+                          />
+                        );
+                      })}
+                    </svg>
+
+                    {/* Center Donut Readout */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-2">
+                      <span className="text-[9px] font-extrabold uppercase tracking-wider text-[var(--text-muted)] truncate max-w-[74px]">
+                        {focusedSlice ? focusedSlice.shortLabel : "Total"}
+                      </span>
+                      <span className="text-xs font-black tabular-nums leading-tight mt-0.5">
+                        ₹
+                        {Math.round(
+                          focusedSlice ? focusedSlice.amount : totalSpend,
+                        ).toLocaleString()}
+                      </span>
+                      {focusedSlice && (
+                        <span
+                          className="text-[9px] font-black mt-0.5"
+                          style={{ color: focusedSlice.color }}
+                        >
+                          {focusedSlice.roundedPct}%
                         </span>
-                      </div>
-                      <div className="w-full h-2 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden border border-[var(--border-color)]">
-                        <div
-                          className="h-full rounded-full bg-[var(--accent-primary)]"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
+                      )}
                     </div>
-                  );
-                })}
+                  </div>
+                </div>
+
+                {/* Right: Color-Coded Legend with Exact Values & Percentages */}
+                <div className="col-span-7 space-y-2">
+                  {donutSlices.map((slice, idx) => {
+                    const isSelected = activeSliceIdx === idx;
+                    return (
+                      <button
+                        key={slice.label}
+                        type="button"
+                        onClick={() =>
+                          setActiveSliceIdx((prev) =>
+                            prev === idx ? null : idx,
+                          )
+                        }
+                        onMouseEnter={() => setActiveSliceIdx(idx)}
+                        onMouseLeave={() => setActiveSliceIdx(null)}
+                        className={`w-full px-2.5 py-1.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                          isSelected
+                            ? "bg-white/20 dark:bg-white/12 border-[var(--border-color)] scale-[1.01]"
+                            : "bg-[var(--accent-secondary)]/65 border-transparent hover:border-[var(--border-color)]"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: slice.color }}
+                          />
+                          <span className="text-[11px] font-extrabold truncate">
+                            {slice.label}
+                          </span>
+                        </div>
+
+                        <div className="text-right shrink-0 flex items-center gap-1.5">
+                          <span className="text-[11px] font-black tabular-nums">
+                            ₹{slice.amount.toLocaleString()}
+                          </span>
+                          <span
+                            className="text-[10px] font-black px-1.5 py-0.5 rounded-full tabular-nums"
+                            style={{
+                              backgroundColor: `${slice.color}24`,
+                              color: slice.color,
+                            }}
+                          >
+                            {slice.roundedPct}%
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
