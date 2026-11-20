@@ -3,8 +3,6 @@ import { GoogleGenAI } from "@google/genai";
 
 export const maxDuration = 30;
 
-const MODELS_TO_TRY = ["gemini-3.5-flash-lite", "gemini-3.8-flash"];
-
 function parseDataUrl(input?: string | null, fallbackMime = "image/jpeg") {
   if (!input) return null;
   const match = input.match(/^data:([^;]+);base64,(.+)$/);
@@ -56,48 +54,51 @@ export async function POST(req: Request) {
     }
 
     const hint = scanType || entryType || "fuel";
-    const prompt = `Extract vehicle log fields from this Indian receipt/UPI/odometer image (hint: ${hint}). Return JSON only: {"amount":number|null,"fuel_liters":number|null,"odo_reading":number|null,"date":"YYYY-MM-DD"|null,"category":"Fuel"|"Accessories"|"Insurance"|"Toll / FASTag"|"Parking"|"Repair"|"Service"|"Wash"|"Other","notes":string|null}`;
+    const prompt = `Extract vehicle log fields from this Indian receipt/UPI/odometer image (hint: ${hint}). Return strictly JSON: {"amount":number|null,"fuel_liters":number|null,"odo_reading":number|null,"date":"YYYY-MM-DD"|null,"category":"Fuel"|"Accessories"|"Insurance"|"Toll / FASTag"|"Parking"|"Repair"|"Service"|"Wash"|"Other","notes":string|null}`;
     parts.push({ text: prompt });
 
     const ai = new GoogleGenAI({ apiKey });
-    let lastError: unknown = null;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 9000);
 
-    for (const model of MODELS_TO_TRY) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6500);
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-3.8-flash",
+        contents: parts,
+        config: {
+          responseMimeType: "application/json",
+          temperature: 0,
+          thinkingConfig: { thinkingBudget: 0 },
+          abortSignal: controller.signal,
+        },
+      });
+      clearTimeout(timeoutId);
 
-      try {
-        const response = await ai.models.generateContent({
-          model,
-          contents: parts,
-          config: {
-            responseMimeType: "application/json",
-            temperature: 0,
-            thinkingConfig: { thinkingBudget: 0 },
-            abortSignal: controller.signal,
-          },
-        });
-        clearTimeout(timeoutId);
+      const rawText = response.text || "{}";
+      const cleanedJson = rawText.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(cleanedJson);
+      return NextResponse.json(parsed);
+    } catch (err) {
+      clearTimeout(timeoutId);
+      const rawMsg =
+        err instanceof Error ? err.message : "Gemini failed to scan photo.";
 
-        const rawText = response.text || "{}";
-        const cleanedJson = rawText.replace(/```json|```/g, "").trim();
-        const parsed = JSON.parse(cleanedJson);
-        return NextResponse.json(parsed);
-      } catch (err) {
-        clearTimeout(timeoutId);
-        lastError = err;
-        console.warn(`OCR model ${model} timed out or failed, trying next...`);
+      if (rawMsg.toLowerCase().includes("abort")) {
+        return NextResponse.json(
+          { error: "Scan timed out. Tap once more to retry." },
+          { status: 504 },
+        );
       }
+      if (rawMsg.includes("503") || rawMsg.includes("UNAVAILABLE")) {
+        return NextResponse.json(
+          {
+            error: "Gemini is momentarily busy (503). Tap again in 3 seconds.",
+          },
+          { status: 503 },
+        );
+      }
+      return NextResponse.json({ error: rawMsg }, { status: 500 });
     }
-
-    const rawMsg =
-      lastError instanceof Error ? lastError.message : "OCR request timed out.";
-    const friendlyMsg =
-      rawMsg.includes("abort") || rawMsg.includes("503")
-        ? "Scanner took too long. Tap once more to retry."
-        : rawMsg;
-
-    return NextResponse.json({ error: friendlyMsg }, { status: 503 });
   } catch (error) {
     console.error("AI Scan Error:", error);
     const message =

@@ -114,9 +114,17 @@ function recalculateAllFuelMileages(
     const odo = Number(entry.odo_reading || 0);
     const liters = Number(entry.fuel_liters || 0);
     const prevOdo = lastOdoByVehicle[vId] || 0;
+    const existingMileage =
+      entry.calculated_mileage !== null &&
+      entry.calculated_mileage !== undefined &&
+      Number(entry.calculated_mileage) > 0
+        ? Number(entry.calculated_mileage)
+        : null;
 
     if (odo > 0 && liters > 0 && prevOdo > 0 && odo > prevOdo) {
       mileageById[entry.id] = Number(((odo - prevOdo) / liters).toFixed(2));
+    } else if (existingMileage !== null) {
+      mileageById[entry.id] = existingMileage;
     } else {
       mileageById[entry.id] = null;
     }

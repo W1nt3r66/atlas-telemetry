@@ -34,7 +34,7 @@ async function prepareImageBase64(file: File): Promise<string> {
     const img = new Image();
     img.onload = () => {
       try {
-        const maxDim = 768;
+        const maxDim = 640;
         let { width, height } = img;
 
         if (!width || !height) {
@@ -61,7 +61,7 @@ async function prepareImageBase64(file: File): Promise<string> {
           return;
         }
         ctx.drawImage(img, 0, 0, width, height);
-        const compressed = canvas.toDataURL("image/jpeg", 0.68);
+        const compressed = canvas.toDataURL("image/jpeg", 0.65);
         resolve(compressed && compressed.length > 50 ? compressed : rawDataUrl);
       } catch {
         resolve(rawDataUrl);
@@ -230,11 +230,11 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
 
   const notePlaceholder =
     entryType === "fuel"
-      ? "Enter fuel station or fuel grade"
+      ? "Enter fuel station or grade"
       : entryType === "expense"
-        ? "Enter item or expense description"
+        ? "Enter item or expense details"
         : entryType === "service"
-          ? "Enter service or maintenance details"
+          ? "Enter service details"
           : "Enter wash or detailing notes";
 
   return (
@@ -356,7 +356,7 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
                 min="0"
                 step="0.01"
                 required={entryType !== "wash"}
-                placeholder="Enter amount in INR"
+                placeholder="Amount in INR"
                 value={amount}
                 onWheel={(e) => e.currentTarget.blur()}
                 onChange={(e) =>
@@ -379,7 +379,7 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
                   min="0"
                   step="0.01"
                   required
-                  placeholder="Enter volume in liters"
+                  placeholder="Volume in L"
                   value={fuelLiters}
                   onWheel={(e) => e.currentTarget.blur()}
                   onChange={(e) =>
@@ -395,7 +395,7 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
                   inputMode="numeric"
                   min="0"
                   required
-                  placeholder="Enter odometer in km"
+                  placeholder="Odometer km"
                   value={odoReading}
                   onWheel={(e) => e.currentTarget.blur()}
                   onChange={(e) =>
@@ -455,7 +455,7 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
                   type="number"
                   inputMode="numeric"
                   min="0"
-                  placeholder="Enter odometer in km"
+                  placeholder="Odometer km"
                   value={odoReading}
                   onWheel={(e) => e.currentTarget.blur()}
                   onChange={(e) =>
