@@ -289,6 +289,15 @@ function parseMotorlyGarageData(raw: any, fallbackEmail?: string) {
       const noteParts = [f.station, f.notes || f.note || f.description].filter(
         Boolean,
       );
+      const legacyMileage =
+        Number(
+          f.calculated_mileage ??
+            f.mileage ??
+            f.kmpl ??
+            f.efficiency ??
+            f.avg ??
+            0,
+        ) || null;
 
       return {
         id: f.id || `motorly-f-${idx}`,
@@ -300,7 +309,7 @@ function parseMotorlyGarageData(raw: any, fallbackEmail?: string) {
         odo_reading: odo,
         category: "Fuel",
         notes: noteParts.join(" • ") || "Fuel Fill",
-        calculated_mileage: Number(f.calculated_mileage ?? 0) || null,
+        calculated_mileage: legacyMileage,
       };
     },
   );
@@ -366,6 +375,7 @@ interface AppContextType {
   setActiveVehicleId: (id: string) => void;
   logs: LogEntry[];
   addLog: (entry: Omit<LogEntry, "id">) => Promise<void>;
+  updateLog: (id: string, updates: Partial<LogEntry>) => Promise<void>;
   deleteLog: (id: string) => Promise<void>;
   addVehicle: (v: Omit<Vehicle, "id">) => Promise<void>;
   updateVehicle: (id: string, updates: Partial<Vehicle>) => void;
@@ -733,6 +743,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const updateLog = async (id: string, updates: Partial<LogEntry>) => {
+    const rawUpdated = logs.map((l) =>
+      l.id === id ? { ...l, ...updates } : l,
+    );
+    const updatedLogs = recalculateAllFuelMileages(rawUpdated, vehicles);
+    setLogs(updatedLogs);
+    localStorage.setItem("atlas_logs", JSON.stringify(updatedLogs));
+    await pushToSupabase(user, vehicles, updatedLogs, owner, rawGarageBlob);
+  };
+
   const deleteLog = async (id: string) => {
     const updatedLogs = recalculateAllFuelMileages(
       logs.filter((l) => l.id !== id),
@@ -818,6 +838,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setActiveVehicleId,
         logs,
         addLog,
+        updateLog,
         deleteLog,
         addVehicle,
         updateVehicle,

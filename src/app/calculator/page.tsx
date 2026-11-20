@@ -41,6 +41,101 @@ function haversineRoadKm(
   return Number((straightKm * 1.24).toFixed(1));
 }
 
+async function searchPlacesClient(query: string): Promise<PlaceSuggestion[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+
+  const results: PlaceSuggestion[] = [];
+  const seen = new Set<string>();
+
+  // 1. ArcGIS World Geocoder (supports exact schools, landmarks, highways & cities)
+  try {
+    const arcUrl = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?SingleLine=${encodeURIComponent(
+      q,
+    )}&countryCode=IND&maxLocations=6&outFields=PlaceName,Place_addr,City,Region&f=pjson`;
+    const arcRes = await fetch(arcUrl);
+    if (arcRes.ok) {
+      const arcData = await arcRes.json();
+      const candidates = Array.isArray(arcData?.candidates)
+        ? arcData.candidates
+        : [];
+      for (const c of candidates) {
+        const pLon = Number(c?.location?.x);
+        const pLat = Number(c?.location?.y);
+        if (!pLat || !pLon) continue;
+
+        const addrStr = String(c?.address || "");
+        const parts = addrStr
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const title = c?.attributes?.PlaceName || parts[0] || q;
+        const subtitle =
+          parts.slice(1).join(", ") ||
+          [c?.attributes?.City, c?.attributes?.Region, "India"]
+            .filter(Boolean)
+            .join(", ");
+        const fullLabel = subtitle ? `${title}, ${subtitle}` : title;
+        const key = fullLabel.toLowerCase();
+
+        if (!seen.has(key)) {
+          seen.add(key);
+          results.push({
+            id: `arc-${results.length}-${pLat.toFixed(4)}`,
+            title,
+            subtitle,
+            fullLabel,
+            lat: pLat,
+            lon: pLon,
+          });
+        }
+      }
+    }
+  } catch {
+    // Fall through to Open-Meteo
+  }
+
+  // 2. Open-Meteo Geocoding API (global CDN fallback)
+  if (results.length < 4) {
+    try {
+      const omUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
+        q,
+      )}&count=5&language=en&format=json`;
+      const omRes = await fetch(omUrl);
+      if (omRes.ok) {
+        const omData = await omRes.json();
+        const items = Array.isArray(omData?.results) ? omData.results : [];
+        for (const item of items) {
+          const pLat = Number(item.latitude);
+          const pLon = Number(item.longitude);
+          if (!pLat || !pLon) continue;
+          const title = item.name || q;
+          const subtitle = [item.admin2, item.admin1, item.country]
+            .filter(Boolean)
+            .join(", ");
+          const fullLabel = subtitle ? `${title}, ${subtitle}` : title;
+          const key = fullLabel.toLowerCase();
+          if (!seen.has(key)) {
+            seen.add(key);
+            results.push({
+              id: `om-${item.id || results.length}`,
+              title,
+              subtitle,
+              fullLabel,
+              lat: pLat,
+              lon: pLon,
+            });
+          }
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  return results.slice(0, 6);
+}
+
 export default function TripCalculatorPage() {
   const { user, activeVehicle, logs } = useApp();
 
@@ -89,7 +184,7 @@ export default function TripCalculatorPage() {
   }, [user]);
 
   useEffect(() => {
-    const handleOutside = (e: MouseEvent | TouchEvent) => {
+    const handleOutside = (e: PointerEvent) => {
       const target = e.target as Node;
       if (originWrapRef.current && !originWrapRef.current.contains(target)) {
         setShowOriginDropdown(false);
@@ -98,12 +193,8 @@ export default function TripCalculatorPage() {
         setShowDestDropdown(false);
       }
     };
-    document.addEventListener("mousedown", handleOutside);
-    document.addEventListener("touchstart", handleOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleOutside);
-      document.removeEventListener("touchstart", handleOutside);
-    };
+    document.addEventListener("pointerdown", handleOutside);
+    return () => document.removeEventListener("pointerdown", handleOutside);
   }, []);
 
   // Debounced Start Location autocomplete
@@ -116,17 +207,10 @@ export default function TripCalculatorPage() {
 
     const timer = setTimeout(async () => {
       setLoadingOriginSug(true);
-      try {
-        const res = await fetch(`/api/places?q=${encodeURIComponent(q)}`);
-        const data = await res.json();
-        const list = Array.isArray(data?.results) ? data.results : [];
-        setOriginSuggestions(list);
-        setShowOriginDropdown(list.length > 0);
-      } catch {
-        setOriginSuggestions([]);
-      } finally {
-        setLoadingOriginSug(false);
-      }
+      const list = await searchPlacesClient(q);
+      setOriginSuggestions(list);
+      setShowOriginDropdown(list.length > 0);
+      setLoadingOriginSug(false);
     }, 240);
 
     return () => clearTimeout(timer);
@@ -142,17 +226,10 @@ export default function TripCalculatorPage() {
 
     const timer = setTimeout(async () => {
       setLoadingDestSug(true);
-      try {
-        const res = await fetch(`/api/places?q=${encodeURIComponent(q)}`);
-        const data = await res.json();
-        const list = Array.isArray(data?.results) ? data.results : [];
-        setDestSuggestions(list);
-        setShowDestDropdown(list.length > 0);
-      } catch {
-        setDestSuggestions([]);
-      } finally {
-        setLoadingDestSug(false);
-      }
+      const list = await searchPlacesClient(q);
+      setDestSuggestions(list);
+      setShowDestDropdown(list.length > 0);
+      setLoadingDestSug(false);
     }, 240);
 
     return () => clearTimeout(timer);
@@ -170,15 +247,19 @@ export default function TripCalculatorPage() {
       async (pos) => {
         const { latitude, longitude } = pos.coords;
         try {
-          const res = await fetch(
-            `/api/places?lat=${latitude}&lon=${longitude}`,
+          const revRes = await fetch(
+            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`,
           );
-          const data = await res.json();
-          const place: PlaceSuggestion | undefined = data?.results?.[0];
-          setOrigin(
-            place?.fullLabel ||
-              `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
-          );
+          const revData = await revRes.json();
+          const title =
+            revData?.locality || revData?.city || "Current GPS Location";
+          const subtitle = [
+            revData?.city && revData.city !== title ? revData.city : null,
+            revData?.principalSubdivision,
+          ]
+            .filter(Boolean)
+            .join(", ");
+          setOrigin(subtitle ? `${title}, ${subtitle}` : title);
           setOriginCoords({ lat: latitude, lon: longitude });
           setShowOriginDropdown(false);
         } catch {
@@ -215,18 +296,6 @@ export default function TripCalculatorPage() {
         )
       : 0;
 
-  const resolveCoords = async (
-    text: string,
-    selected: { lat: number; lon: number } | null,
-  ) => {
-    if (selected) return selected;
-    const res = await fetch(`/api/places?q=${encodeURIComponent(text)}`);
-    const data = await res.json();
-    const first: PlaceSuggestion | undefined = data?.results?.[0];
-    if (first) return { lat: first.lat, lon: first.lon };
-    return null;
-  };
-
   const calculateRoute = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!origin.trim() || !destination.trim()) return;
@@ -236,14 +305,21 @@ export default function TripCalculatorPage() {
     setShowDestDropdown(false);
 
     try {
-      const [p1, p2] = await Promise.all([
-        resolveCoords(origin, originCoords),
-        resolveCoords(destination, destCoords),
-      ]);
+      let p1 = originCoords;
+      let p2 = destCoords;
+
+      if (!p1) {
+        const list1 = await searchPlacesClient(origin);
+        if (list1[0]) p1 = { lat: list1[0].lat, lon: list1[0].lon };
+      }
+      if (!p2) {
+        const list2 = await searchPlacesClient(destination);
+        if (list2[0]) p2 = { lat: list2[0].lat, lon: list2[0].lon };
+      }
 
       if (!p1 || !p2) {
         setErrorMsg(
-          "Could not locate one of those places. Pick a suggestion from the dropdown.",
+          "Could not locate one of those places. Pick a suggestion from the list.",
         );
         setLoading(false);
         return;
@@ -260,7 +336,7 @@ export default function TripCalculatorPage() {
           return;
         }
       } catch {
-        // Fallback to road-adjusted geodesic estimate if OSRM is busy
+        // Fallback to road-adjusted distance if OSRM is unreachable
       }
 
       setOneWayKm(haversineRoadKm(p1.lat, p1.lon, p2.lat, p2.lon));
@@ -353,12 +429,13 @@ export default function TripCalculatorPage() {
             </div>
 
             {showOriginDropdown && originSuggestions.length > 0 && (
-              <div className="glass-popover absolute left-0 right-0 z-40 mt-1.5 overflow-hidden divide-y divide-[var(--border-subtle)] max-h-56 overflow-y-auto">
+              <div className="glass-popover absolute left-0 right-0 z-50 mt-1.5 overflow-hidden divide-y divide-[var(--border-subtle)] max-h-56 overflow-y-auto">
                 {originSuggestions.map((item) => (
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => {
+                    onPointerDown={(e) => {
+                      e.preventDefault();
                       setOrigin(item.fullLabel);
                       setOriginCoords({ lat: item.lat, lon: item.lon });
                       setShowOriginDropdown(false);
@@ -418,12 +495,13 @@ export default function TripCalculatorPage() {
             </div>
 
             {showDestDropdown && destSuggestions.length > 0 && (
-              <div className="glass-popover absolute left-0 right-0 z-40 mt-1.5 overflow-hidden divide-y divide-[var(--border-subtle)] max-h-56 overflow-y-auto">
+              <div className="glass-popover absolute left-0 right-0 z-50 mt-1.5 overflow-hidden divide-y divide-[var(--border-subtle)] max-h-56 overflow-y-auto">
                 {destSuggestions.map((item) => (
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => {
+                    onPointerDown={(e) => {
+                      e.preventDefault();
                       setDestination(item.fullLabel);
                       setDestCoords({ lat: item.lat, lon: item.lon });
                       setShowDestDropdown(false);
@@ -464,7 +542,6 @@ export default function TripCalculatorPage() {
             />
           </div>
 
-          {/* High-Contrast Frosted Pill Toggle Switch */}
           <button
             type="button"
             role="switch"

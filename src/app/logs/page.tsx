@@ -2,15 +2,33 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { useApp } from "@/context/AppContext";
-import { FileDown, Filter, TrendingUp, PieChart, Trash2 } from "lucide-react";
+import { useApp, LogEntry } from "@/context/AppContext";
+import {
+  FileDown,
+  Filter,
+  TrendingUp,
+  PieChart,
+  Trash2,
+  Pencil,
+  X,
+} from "lucide-react";
 
 type FilterTab = "all" | "fuel" | "expense" | "service" | "wash";
 
 function LogsContent() {
   const searchParams = useSearchParams();
-  const { activeVehicle, logs, deleteLog, owner } = useApp();
+  const { activeVehicle, logs, updateLog, deleteLog, owner } = useApp();
   const [filterType, setFilterType] = useState<FilterTab>("all");
+
+  // Edit modal state
+  const [editingEntry, setEditingEntry] = useState<LogEntry | null>(null);
+  const [editDate, setEditDate] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editLiters, setEditLiters] = useState("");
+  const [editOdo, setEditOdo] = useState("");
+  const [editMileage, setEditMileage] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     const param = searchParams.get("filter") as FilterTab | null;
@@ -31,19 +49,54 @@ function LogsContent() {
       ? vehicleLogs
       : vehicleLogs.filter((l) => l.type === filterType);
 
+  const openEditModal = (entry: LogEntry) => {
+    setEditingEntry(entry);
+    setEditDate(entry.date || "");
+    setEditAmount(entry.amount ? String(entry.amount) : "");
+    setEditLiters(entry.fuel_liters ? String(entry.fuel_liters) : "");
+    setEditOdo(entry.odo_reading ? String(entry.odo_reading) : "");
+    setEditMileage(
+      entry.calculated_mileage ? String(entry.calculated_mileage) : "",
+    );
+    setEditNotes(entry.notes || "");
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingEntry || savingEdit) return;
+    setSavingEdit(true);
+
+    await updateLog(editingEntry.id, {
+      date: editDate || editingEntry.date,
+      amount: Math.max(0, Number(editAmount) || 0),
+      fuel_liters:
+        editingEntry.type === "fuel" && editLiters
+          ? Math.max(0, Number(editLiters))
+          : null,
+      odo_reading: editOdo ? Math.max(0, Number(editOdo)) : null,
+      calculated_mileage:
+        editingEntry.type === "fuel" && editMileage
+          ? Math.max(0, Number(editMileage))
+          : null,
+      notes: editNotes.trim(),
+    });
+
+    setSavingEdit(false);
+    setEditingEntry(null);
+  };
+
   const handleDeleteLog = async (id: string, label: string, date: string) => {
     if (!confirm(`Delete "${label}" (${date})?`)) return;
     await deleteLog(id);
   };
 
-  // Strictly sort fuel entries chronologically (date -> odometer) before taking last 8
+  // Show last 8 fuel entries chronologically (plots fuel bars even if mileage is not yet computed)
   const comboPoints = [...vehicleLogs]
     .filter(
       (l) =>
         l.type === "fuel" &&
-        l.calculated_mileage !== null &&
-        l.calculated_mileage !== undefined &&
-        Number(l.calculated_mileage) > 0,
+        (Number(l.fuel_liters || 0) > 0 ||
+          Number(l.calculated_mileage || 0) > 0),
     )
     .sort((a, b) => {
       const dateCmp = String(a.date || "").localeCompare(String(b.date || ""));
@@ -52,14 +105,12 @@ function LogsContent() {
     })
     .slice(-8);
 
-  const maxM = Math.max(
-    ...comboPoints.map((p) => Number(p.calculated_mileage)),
-    10,
-  );
-  const minM = Math.min(
-    ...comboPoints.map((p) => Number(p.calculated_mileage)),
-    0,
-  );
+  const validMileages = comboPoints
+    .map((p) => Number(p.calculated_mileage || 0))
+    .filter((m) => m > 0);
+
+  const maxM = Math.max(...validMileages, 10);
+  const minM = Math.min(...validMileages, 0);
   const rangeM = Math.max(maxM - minM, 1);
 
   const maxLiters = Math.max(
@@ -67,7 +118,6 @@ function LogsContent() {
     10,
   );
 
-  // Synchronized Dual-Track SVG Geometry (Upper: Mileage Line, Lower: Fuel Bars)
   const chartWidth = 440;
   const chartHeight = 188;
   const padX = 32;
@@ -86,14 +136,17 @@ function LogsContent() {
         ? chartWidth / 2
         : padX + (idx / (comboPoints.length - 1)) * (chartWidth - padX * 2);
 
-    const mileageVal = Number(pt.calculated_mileage);
+    const mileageVal = Number(pt.calculated_mileage || 0);
+    const hasMileage = mileageVal > 0;
     const liters = Number(pt.fuel_liters || 0);
 
-    const yLine = lineBottom - ((mileageVal - minM) / rangeM) * linePlotH;
+    const yLine = hasMileage
+      ? lineBottom - ((mileageVal - minM) / rangeM) * linePlotH
+      : lineBottom - linePlotH * 0.4;
 
     const barH = Math.max(8, (liters / maxLiters) * barMaxH);
     const yBar = barAreaBottom - barH;
-    const mileageStr = mileageVal.toFixed(1);
+    const mileageStr = hasMileage ? mileageVal.toFixed(1) : "—";
     const pillW = Math.max(30, mileageStr.length * 6.5 + 8);
 
     return {
@@ -102,6 +155,7 @@ function LogsContent() {
       yLine,
       yBar,
       barH,
+      hasMileage,
       mileageStr,
       pillW,
       liters: liters.toFixed(0),
@@ -109,15 +163,15 @@ function LogsContent() {
     };
   });
 
-  const polylineStr = coords.map((c) => `${c.x},${c.yLine}`).join(" ");
+  const mileageCoords = coords.filter((c) => c.hasMileage);
+  const polylineStr = mileageCoords.map((c) => `${c.x},${c.yLine}`).join(" ");
   const areaStr =
-    coords.length > 1
-      ? `${coords[0].x},${lineBottom + 6} ${polylineStr} ${
-          coords[coords.length - 1].x
+    mileageCoords.length > 1
+      ? `${mileageCoords[0].x},${lineBottom + 6} ${polylineStr} ${
+          mileageCoords[mileageCoords.length - 1].x
         },${lineBottom + 6}`
       : "";
 
-  // Category Expense Split Breakdown
   const totalSpend = vehicleLogs.reduce(
     (sum, l) => sum + Number(l.amount || 0),
     0,
@@ -209,355 +263,491 @@ function LogsContent() {
     win.document.close();
   };
 
+  const inputClass =
+    "flex items-center w-full h-11 mt-1.5 px-3.5 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-input)] text-[var(--text-main)] text-[16px] sm:text-sm font-medium leading-none appearance-none focus:outline-none";
+
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-black">Telemetry &amp; Expense Logs</h1>
-          <p className="text-xs text-[var(--text-muted)]">
-            {activeVehicle
-              ? `${activeVehicle.name} (${activeVehicle.plate || "IN12AB3456"}) • ${filteredLogs.length} entries`
-              : `${filteredLogs.length} entries`}
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={exportPdf}
-          className="funky-btn px-4 py-2 rounded-full bg-[var(--accent-secondary)] text-xs font-extrabold flex items-center gap-1.5 cursor-pointer"
-        >
-          <FileDown className="w-3.5 h-3.5" /> Export PDF
-        </button>
-      </div>
-
-      {/* Synchronized Dual-Track Mileage & Fuel Chart + Expense Split */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Dual-Track Mileage (km/l) & Fuel Volume (L) Chart */}
-        <div className="funky-card p-5 space-y-2.5">
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-black text-sm flex items-center gap-1.5">
-              <TrendingUp className="w-4 h-4" /> Mileage &amp; Fuel Combo
-            </span>
-            <div className="flex items-center gap-2.5 text-[10px] font-extrabold text-[var(--text-muted)]">
-              <span className="inline-flex items-center gap-1">
-                <span className="w-2.5 h-0.5 bg-current inline-block" />
-                km/l
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-sm bg-current opacity-25 inline-block" />
-                Fuel (L)
-              </span>
-            </div>
+    <>
+      <div className="space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-black">
+              Telemetry &amp; Expense Logs
+            </h1>
+            <p className="text-xs text-[var(--text-muted)]">
+              {activeVehicle
+                ? `${activeVehicle.name} (${activeVehicle.plate || "IN12AB3456"}) • ${filteredLogs.length} entries`
+                : `${filteredLogs.length} entries`}
+            </p>
           </div>
 
-          {coords.length === 0 ? (
-            <div className="h-44 flex items-center justify-center text-xs text-[var(--text-muted)]">
-              Log at least two refuels with odometer readings to plot combo
-              chart.
+          <button
+            type="button"
+            onClick={exportPdf}
+            className="funky-btn px-4 py-2 rounded-full bg-[var(--accent-secondary)] text-xs font-extrabold flex items-center gap-1.5 cursor-pointer"
+          >
+            <FileDown className="w-3.5 h-3.5" /> Export PDF
+          </button>
+        </div>
+
+        {/* Synchronized Dual-Track Mileage & Fuel Chart + Expense Split */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="funky-card p-5 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-black text-sm flex items-center gap-1.5">
+                <TrendingUp className="w-4 h-4" /> Mileage &amp; Fuel Combo
+              </span>
+              <div className="flex items-center gap-2.5 text-[10px] font-extrabold text-[var(--text-muted)]">
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-2.5 h-0.5 bg-current inline-block" />
+                  km/l
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-current opacity-25 inline-block" />
+                  Fuel (L)
+                </span>
+              </div>
             </div>
-          ) : (
-            <svg
-              viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-              className="w-full h-48 overflow-visible"
-            >
-              <defs>
-                <linearGradient
-                  id="mileageAreaGrad"
-                  x1="0"
-                  y1="0"
-                  x2="0"
-                  y2="1"
-                >
-                  <stop
-                    offset="0%"
-                    stopColor="currentColor"
-                    stopOpacity="0.16"
-                  />
-                  <stop
-                    offset="100%"
-                    stopColor="currentColor"
-                    stopOpacity="0.0"
-                  />
-                </linearGradient>
-              </defs>
 
-              <line
-                x1={padX - 14}
-                y1={lineBottom + 6}
-                x2={chartWidth - padX + 14}
-                y2={lineBottom + 6}
-                stroke="currentColor"
-                strokeOpacity="0.14"
-                strokeWidth="1"
-              />
-
-              <line
-                x1={padX - 14}
-                y1={barAreaBottom}
-                x2={chartWidth - padX + 14}
-                y2={barAreaBottom}
-                stroke="currentColor"
-                strokeOpacity="0.2"
-                strokeWidth="1"
-              />
-
-              {coords.map((c) => (
-                <g key={`bar-${c.id}`}>
-                  <line
-                    x1={c.x}
-                    y1={c.yLine}
-                    x2={c.x}
-                    y2={barAreaBottom}
-                    stroke="currentColor"
-                    strokeOpacity="0.14"
-                    strokeDasharray="2 2"
-                    strokeWidth="1"
-                  />
-                  <rect
-                    x={c.x - 12}
-                    y={c.yBar}
-                    width="24"
-                    height={c.barH}
-                    rx="5"
-                    fill="currentColor"
-                    fillOpacity="0.2"
-                  />
-                  <text
-                    x={c.x}
-                    y={c.yBar - 3}
-                    textAnchor="middle"
-                    fontSize="7.5"
-                    fontWeight="800"
-                    fill="currentColor"
-                    fillOpacity="0.7"
+            {coords.length === 0 ? (
+              <div className="h-44 flex items-center justify-center text-xs text-[var(--text-muted)]">
+                No fuel entries recorded yet.
+              </div>
+            ) : (
+              <svg
+                viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+                className="w-full h-48 overflow-visible"
+              >
+                <defs>
+                  <linearGradient
+                    id="mileageAreaGrad"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
                   >
-                    {c.liters}L
-                  </text>
-                  <text
-                    x={c.x}
-                    y={barAreaBottom + 14}
-                    textAnchor="middle"
-                    fontSize="8.5"
-                    fontWeight="700"
-                    fill="currentColor"
-                    fillOpacity="0.65"
-                  >
-                    {c.shortDate}
-                  </text>
-                </g>
-              ))}
+                    <stop
+                      offset="0%"
+                      stopColor="currentColor"
+                      stopOpacity="0.16"
+                    />
+                    <stop
+                      offset="100%"
+                      stopColor="currentColor"
+                      stopOpacity="0.0"
+                    />
+                  </linearGradient>
+                </defs>
 
-              {areaStr && (
-                <polygon points={areaStr} fill="url(#mileageAreaGrad)" />
-              )}
+                <line
+                  x1={padX - 14}
+                  y1={lineBottom + 6}
+                  x2={chartWidth - padX + 14}
+                  y2={lineBottom + 6}
+                  stroke="currentColor"
+                  strokeOpacity="0.14"
+                  strokeWidth="1"
+                />
 
-              <polyline
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                points={polylineStr}
-              />
+                <line
+                  x1={padX - 14}
+                  y1={barAreaBottom}
+                  x2={chartWidth - padX + 14}
+                  y2={barAreaBottom}
+                  stroke="currentColor"
+                  strokeOpacity="0.2"
+                  strokeWidth="1"
+                />
 
-              {coords.map((c) => (
-                <g key={`node-${c.id}`}>
-                  <circle
-                    cx={c.x}
-                    cy={c.yLine}
-                    r="4"
-                    fill="var(--bg-popover)"
+                {coords.map((c) => (
+                  <g key={`bar-${c.id}`}>
+                    <line
+                      x1={c.x}
+                      y1={c.yLine}
+                      x2={c.x}
+                      y2={barAreaBottom}
+                      stroke="currentColor"
+                      strokeOpacity="0.14"
+                      strokeDasharray="2 2"
+                      strokeWidth="1"
+                    />
+                    <rect
+                      x={c.x - 12}
+                      y={c.yBar}
+                      width="24"
+                      height={c.barH}
+                      rx="5"
+                      fill="currentColor"
+                      fillOpacity="0.2"
+                    />
+                    <text
+                      x={c.x}
+                      y={c.yBar - 3}
+                      textAnchor="middle"
+                      fontSize="7.5"
+                      fontWeight="800"
+                      fill="currentColor"
+                      fillOpacity="0.7"
+                    >
+                      {c.liters}L
+                    </text>
+                    <text
+                      x={c.x}
+                      y={barAreaBottom + 14}
+                      textAnchor="middle"
+                      fontSize="8.5"
+                      fontWeight="700"
+                      fill="currentColor"
+                      fillOpacity="0.65"
+                    >
+                      {c.shortDate}
+                    </text>
+                  </g>
+                ))}
+
+                {areaStr && (
+                  <polygon points={areaStr} fill="url(#mileageAreaGrad)" />
+                )}
+
+                {mileageCoords.length > 1 && (
+                  <polyline
+                    fill="none"
                     stroke="currentColor"
                     strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    points={polylineStr}
                   />
-                  <rect
-                    x={c.x - c.pillW / 2}
-                    y={c.yLine - 22}
-                    width={c.pillW}
-                    height="14"
-                    rx="7"
-                    fill="var(--bg-popover)"
-                    stroke="currentColor"
-                    strokeOpacity="0.22"
-                    strokeWidth="0.8"
-                  />
-                  <text
-                    x={c.x}
-                    y={c.yLine - 12}
-                    textAnchor="middle"
-                    fontSize="8.5"
-                    fontWeight="800"
-                    fill="currentColor"
-                  >
-                    {c.mileageStr}
-                  </text>
-                </g>
-              ))}
-            </svg>
-          )}
-        </div>
+                )}
 
-        {/* Category Expense Split */}
-        <div className="funky-card p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="font-black text-sm flex items-center gap-1.5">
-              <PieChart className="w-4 h-4" /> Expense Split
-            </span>
-            <span className="text-xs font-black tabular-nums">
-              Total: ₹{totalSpend.toLocaleString()}
-            </span>
+                {mileageCoords.map((c) => (
+                  <g key={`node-${c.id}`}>
+                    <circle
+                      cx={c.x}
+                      cy={c.yLine}
+                      r="4"
+                      fill="var(--bg-popover)"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                    />
+                    <rect
+                      x={c.x - c.pillW / 2}
+                      y={c.yLine - 22}
+                      width={c.pillW}
+                      height="14"
+                      rx="7"
+                      fill="var(--bg-popover)"
+                      stroke="currentColor"
+                      strokeOpacity="0.22"
+                      strokeWidth="0.8"
+                    />
+                    <text
+                      x={c.x}
+                      y={c.yLine - 12}
+                      textAnchor="middle"
+                      fontSize="8.5"
+                      fontWeight="800"
+                      fill="currentColor"
+                    >
+                      {c.mileageStr}
+                    </text>
+                  </g>
+                ))}
+              </svg>
+            )}
           </div>
 
-          {splitBuckets.length === 0 ? (
-            <div className="h-36 flex items-center justify-center text-xs text-[var(--text-muted)]">
-              No expenses recorded yet.
+          {/* Category Expense Split */}
+          <div className="funky-card p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-black text-sm flex items-center gap-1.5">
+                <PieChart className="w-4 h-4" /> Expense Split
+              </span>
+              <span className="text-xs font-black tabular-nums">
+                Total: ₹{totalSpend.toLocaleString()}
+              </span>
             </div>
-          ) : (
-            <div className="space-y-2.5 pt-1">
-              {splitBuckets.map((bucket) => {
-                const pct =
-                  totalSpend > 0
-                    ? Math.round((bucket.amount / totalSpend) * 100)
-                    : 0;
-                return (
-                  <div key={bucket.label} className="space-y-1 text-xs">
-                    <div className="flex items-center justify-between font-extrabold">
-                      <span>{bucket.label}</span>
-                      <span className="tabular-nums">
-                        ₹{bucket.amount.toLocaleString()} ({pct}%)
+
+            {splitBuckets.length === 0 ? (
+              <div className="h-36 flex items-center justify-center text-xs text-[var(--text-muted)]">
+                No expenses recorded yet.
+              </div>
+            ) : (
+              <div className="space-y-2.5 pt-1">
+                {splitBuckets.map((bucket) => {
+                  const pct =
+                    totalSpend > 0
+                      ? Math.round((bucket.amount / totalSpend) * 100)
+                      : 0;
+                  return (
+                    <div key={bucket.label} className="space-y-1 text-xs">
+                      <div className="flex items-center justify-between font-extrabold">
+                        <span>{bucket.label}</span>
+                        <span className="tabular-nums">
+                          ₹{bucket.amount.toLocaleString()} ({pct}%)
+                        </span>
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden border border-[var(--border-color)]">
+                        <div
+                          className="h-full rounded-full bg-[var(--accent-primary)]"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Category Filter Pills */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <Filter className="w-4 h-4 shrink-0 text-[var(--text-muted)]" />
+          {(
+            [
+              { id: "all", label: "All" },
+              { id: "fuel", label: "Fuel" },
+              { id: "expense", label: "Parts & Expenses" },
+              { id: "service", label: "Service" },
+              { id: "wash", label: "Wash" },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setFilterType(tab.id)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-extrabold shrink-0 cursor-pointer ${
+                filterType === tab.id
+                  ? "funky-btn-primary"
+                  : "funky-btn bg-[var(--accent-secondary)]"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Log Cards List */}
+        {filteredLogs.length === 0 ? (
+          <div className="funky-card p-8 text-center text-xs text-[var(--text-muted)]">
+            No logs found for this filter.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredLogs.map((entry) => {
+              const ratePerLiter =
+                entry.type === "fuel" &&
+                entry.fuel_liters &&
+                entry.fuel_liters > 0
+                  ? (entry.amount / entry.fuel_liters).toFixed(2)
+                  : null;
+
+              return (
+                <div
+                  key={entry.id}
+                  className="funky-card p-4 sm:p-5 flex items-start justify-between gap-3"
+                >
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span
+                        className={`shrink-0 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wide ${
+                          entry.type === "fuel"
+                            ? "funky-btn-primary"
+                            : "bg-[var(--accent-secondary)] border border-[var(--border-color)]"
+                        }`}
+                      >
+                        {entry.category}
+                      </span>
+
+                      <span className="font-extrabold text-sm leading-snug break-words">
+                        {entry.notes || entry.category}
                       </span>
                     </div>
-                    <div className="w-full h-2 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden border border-[var(--border-color)]">
-                      <div
-                        className="h-full rounded-full bg-[var(--accent-primary)]"
-                        style={{ width: `${pct}%` }}
-                      />
+
+                    <div className="text-xs font-medium text-[var(--text-muted)] flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <span>Date: {entry.date}</span>
+                      {entry.odo_reading ? (
+                        <span>
+                          • Odometer: {entry.odo_reading.toLocaleString()} km
+                        </span>
+                      ) : null}
+                      {entry.type === "fuel" && entry.fuel_liters ? (
+                        <span>
+                          • Fuel: {entry.fuel_liters} L
+                          {ratePerLiter ? ` (₹${ratePerLiter}/L)` : ""}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
 
-      {/* Category Filter Pills */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        <Filter className="w-4 h-4 shrink-0 text-[var(--text-muted)]" />
-        {(
-          [
-            { id: "all", label: "All" },
-            { id: "fuel", label: "Fuel" },
-            { id: "expense", label: "Parts & Expenses" },
-            { id: "service", label: "Service" },
-            { id: "wash", label: "Wash" },
-          ] as const
-        ).map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setFilterType(tab.id)}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-extrabold shrink-0 cursor-pointer ${
-              filterType === tab.id
-                ? "funky-btn-primary"
-                : "funky-btn bg-[var(--accent-secondary)]"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+                  <div className="shrink-0 flex items-start gap-2">
+                    <div className="text-right space-y-1.5">
+                      <div className="text-base sm:text-lg font-black tabular-nums leading-tight">
+                        {entry.amount > 0
+                          ? `₹${entry.amount.toLocaleString()}`
+                          : "Logged"}
+                      </div>
 
-      {/* Log Cards List */}
-      {filteredLogs.length === 0 ? (
-        <div className="funky-card p-8 text-center text-xs text-[var(--text-muted)]">
-          No logs found for this filter.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filteredLogs.map((entry) => {
-            const ratePerLiter =
-              entry.type === "fuel" &&
-              entry.fuel_liters &&
-              entry.fuel_liters > 0
-                ? (entry.amount / entry.fuel_liters).toFixed(2)
-                : null;
+                      {entry.type === "fuel" && entry.calculated_mileage ? (
+                        <div className="funky-btn-primary inline-block px-2.5 py-0.5 rounded-full text-[11px] font-black tabular-nums">
+                          {entry.calculated_mileage} km/l
+                        </div>
+                      ) : null}
+                    </div>
 
-            return (
-              <div
-                key={entry.id}
-                className="funky-card p-4 sm:p-5 flex items-start justify-between gap-3"
-              >
-                <div className="flex-1 min-w-0 space-y-1.5">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span
-                      className={`shrink-0 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wide ${
-                        entry.type === "fuel"
-                          ? "funky-btn-primary"
-                          : "bg-[var(--accent-secondary)] border border-[var(--border-color)]"
-                      }`}
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(entry)}
+                      title="Edit entry"
+                      aria-label="Edit entry"
+                      className="funky-btn p-2 rounded-full bg-[var(--accent-secondary)] cursor-pointer shrink-0"
                     >
-                      {entry.category}
-                    </span>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
 
-                    <span className="font-extrabold text-sm leading-snug break-words">
-                      {entry.notes || entry.category}
-                    </span>
-                  </div>
-
-                  <div className="text-xs font-medium text-[var(--text-muted)] flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                    <span>Date: {entry.date}</span>
-                    {entry.odo_reading ? (
-                      <span>
-                        • Odometer: {entry.odo_reading.toLocaleString()} km
-                      </span>
-                    ) : null}
-                    {entry.type === "fuel" && entry.fuel_liters ? (
-                      <span>
-                        • Fuel: {entry.fuel_liters} L
-                        {ratePerLiter ? ` (₹${ratePerLiter}/L)` : ""}
-                      </span>
-                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleDeleteLog(
+                          entry.id,
+                          entry.notes || entry.category,
+                          entry.date,
+                        )
+                      }
+                      title="Delete entry"
+                      aria-label="Delete entry"
+                      className="funky-btn p-2 rounded-full bg-red-500/12 text-red-500 border-red-400/35 hover:bg-red-500/20 cursor-pointer shrink-0"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
-                <div className="shrink-0 flex items-start gap-2.5">
-                  <div className="text-right space-y-1.5">
-                    <div className="text-base sm:text-lg font-black tabular-nums leading-tight">
-                      {entry.amount > 0
-                        ? `₹${entry.amount.toLocaleString()}`
-                        : "Logged"}
-                    </div>
+      {/* Edit Log Modal */}
+      {editingEntry && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm">
+          <div className="glass-modal w-full max-w-md p-5 sm:p-6 space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h2 className="text-base font-black">
+                  Edit {editingEntry.category} Entry
+                </h2>
+                <p className="text-xs text-[var(--text-muted)]">
+                  Update odometer or mileage to recalculate graphs
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingEntry(null)}
+                className="funky-btn p-2 rounded-full bg-[var(--accent-secondary)] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-                    {entry.type === "fuel" && entry.calculated_mileage ? (
-                      <div className="funky-btn-primary inline-block px-2.5 py-0.5 rounded-full text-[11px] font-black tabular-nums">
-                        {entry.calculated_mileage} km/l
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleDeleteLog(
-                        entry.id,
-                        entry.notes || entry.category,
-                        entry.date,
-                      )
+            <form onSubmit={handleSaveEdit} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold">Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold">Amount (₹)</label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    value={editAmount}
+                    onChange={(e) =>
+                      setEditAmount(e.target.value.replace(/-/g, ""))
                     }
-                    title="Delete entry"
-                    aria-label="Delete entry"
-                    className="funky-btn p-2 rounded-full bg-red-500/12 text-red-500 border-red-400/35 hover:bg-red-500/20 cursor-pointer shrink-0"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                    className={inputClass}
+                  />
                 </div>
               </div>
-            );
-          })}
+
+              {editingEntry.type === "fuel" && (
+                <div className="grid grid-cols-3 gap-2.5">
+                  <div>
+                    <label className="block text-xs font-bold">Fuel (L)</label>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.01"
+                      value={editLiters}
+                      onChange={(e) =>
+                        setEditLiters(e.target.value.replace(/-/g, ""))
+                      }
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold">Odo (km)</label>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min="0"
+                      value={editOdo}
+                      onChange={(e) =>
+                        setEditOdo(e.target.value.replace(/-/g, ""))
+                      }
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold">km/l</label>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.01"
+                      placeholder="Auto"
+                      value={editMileage}
+                      onChange={(e) =>
+                        setEditMileage(e.target.value.replace(/-/g, ""))
+                      }
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold">Notes</label>
+                <input
+                  type="text"
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={savingEdit}
+                className="funky-btn-primary w-full py-3 rounded-full font-black text-sm cursor-pointer disabled:opacity-50"
+              >
+                {savingEdit ? "Saving..." : "Save Changes"}
+              </button>
+            </form>
+          </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
