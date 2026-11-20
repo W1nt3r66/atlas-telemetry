@@ -52,28 +52,90 @@ export default function LaunchSplash() {
         </div>
       </div>
 
+      {/* Bottom-to-Top Open-Wheel F1 Car Swoosh */}
       <div
         style={{ transform: "translateY(120vh)", opacity: 0 }}
         className="pointer-events-none fixed inset-x-0 top-0 z-20 flex flex-col items-center animate-vertical-swoosh"
       >
         <svg
-          viewBox="0 0 120 200"
-          className="w-24 h-40 text-[#025cbc] dark:text-[#3898ec] drop-shadow-[0_-12px_28px_rgba(2,92,188,0.45)] shrink-0"
+          viewBox="0 0 140 240"
+          className="w-28 h-48 text-[#025cbc] dark:text-[#3898ec] drop-shadow-[0_-14px_30px_rgba(2,92,188,0.5)] shrink-0"
           fill="currentColor"
         >
-          <path d="M60 6 C76 6 88 22 92 48 L96 76 C100 84 100 112 96 122 L92 162 C88 180 78 190 60 190 C42 190 32 180 28 162 L24 122 C20 112 20 84 24 76 L28 48 C32 22 44 6 60 6 Z" />
+          {/* Multi-Element Front Wing & Endplates */}
+          <path d="M24 26 L60 18 L80 18 L116 26 L116 37 L82 33 L58 33 L24 37 Z" />
+          <rect x="21" y="21" width="4" height="20" rx="1.5" />
+          <rect x="115" y="21" width="4" height="20" rx="1.5" />
+
+          {/* Front Suspension Wishbones */}
           <path
-            d="M60 44 C71 44 78 54 80 72 L76 134 C74 146 68 152 60 152 C52 152 46 146 44 134 L40 72 C42 54 49 44 60 44 Z"
-            fill="var(--bg-main)"
-            fillOpacity="0.85"
+            d="M35 54 L63 48 M35 64 L63 62 M105 54 L77 48 M105 64 L77 62"
+            stroke="currentColor"
+            strokeWidth="3.2"
+            strokeLinecap="round"
           />
-          <rect x="30" y="182" width="60" height="5" rx="2.5" />
+
+          {/* Front Left & Right Open-Wheel Slick Tires */}
+          <rect x="19" y="44" width="17" height="34" rx="5.5" />
+          <rect x="104" y="44" width="17" height="34" rx="5.5" />
+
+          {/* Rear Suspension Wishbones */}
+          <path
+            d="M36 168 L62 162 M36 178 L62 176 M104 168 L78 162 M104 178 L78 176"
+            stroke="currentColor"
+            strokeWidth="3.5"
+            strokeLinecap="round"
+          />
+
+          {/* Wide Rear Left & Right Open-Wheel Slick Tires */}
+          <rect x="16" y="156" width="21" height="38" rx="6" />
+          <rect x="103" y="156" width="21" height="38" rx="6" />
+
+          {/* Floor & Bargeboard Aero Edges */}
+          <path d="M41 96 L99 96 L95 166 L45 166 Z" fillOpacity="0.45" />
+
+          {/* Main Monocoque Nosecone, Sculpted Sidepods & Tapered Engine Cover */}
+          <path d="M70 8 C75 8 78 24 79 44 L81 74 C93 82 97 96 95 118 L88 156 L77 188 L63 188 L52 156 L45 118 C43 96 47 82 59 74 L61 44 C62 24 65 8 70 8 Z" />
+
+          {/* Cockpit Opening & Driver Helmet */}
+          <ellipse
+            cx="70"
+            cy="104"
+            rx="8.5"
+            ry="15"
+            fill="var(--bg-main)"
+            fillOpacity="0.9"
+          />
+          <circle cx="70" cy="105" r="5.5" fill="currentColor" />
+
+          {/* Halo Safety Titanium Wishbone */}
+          <path
+            d="M61 102 C61 91 79 91 79 102 M70 88 L70 95"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.6"
+            strokeLinecap="round"
+          />
+
+          {/* Rear DRS Wing & Endplates */}
+          <rect x="33" y="198" width="74" height="14" rx="3" />
+          <rect x="30" y="194" width="4" height="22" rx="1.5" />
+          <rect x="106" y="194" width="4" height="22" rx="1.5" />
         </svg>
 
-        <div className="-mt-6 w-screen h-[140vh] bg-gradient-to-b from-[#0e84eb]/25 via-[var(--bg-main)]/95 to-[var(--bg-main)] backdrop-blur-2xl border-t-2 border-[#0e84eb]/60 flex justify-center gap-12 pt-2">
-          <div className="w-[2px] h-72 bg-gradient-to-b from-[#0e84eb] to-transparent opacity-75" />
-          <div className="w-[3px] h-96 bg-gradient-to-b from-[#025cbc] to-transparent opacity-90" />
-          <div className="w-[2px] h-72 bg-gradient-to-b from-[#0e84eb] to-transparent opacity-75" />
+        {/* Smooth Feathered Slipstream Wake (No Hard Horizontal Edge) */}
+        <div
+          style={{
+            maskImage:
+              "linear-gradient(to bottom, transparent 0%, black 18%, black 85%, transparent 100%)",
+            WebkitMaskImage:
+              "linear-gradient(to bottom, transparent 0%, black 18%, black 85%, transparent 100%)",
+          }}
+          className="-mt-8 w-screen h-[120vh] bg-gradient-to-b from-transparent via-[#0e84eb]/14 to-transparent flex justify-center gap-12 pt-4"
+        >
+          <div className="w-[2px] h-72 bg-gradient-to-b from-transparent via-[#0e84eb]/65 to-transparent" />
+          <div className="w-[3px] h-96 bg-gradient-to-b from-transparent via-[#025cbc]/80 to-transparent" />
+          <div className="w-[2px] h-72 bg-gradient-to-b from-transparent via-[#0e84eb]/65 to-transparent" />
         </div>
       </div>
     </div>
