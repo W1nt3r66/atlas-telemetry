@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useApp } from "@/context/AppContext";
 import { calculateMaintenanceStatus } from "@/lib/maintenance";
 import Link from "next/link";
@@ -120,6 +120,8 @@ export default function DashboardPage() {
 
   const [greeting, setGreeting] = useState("Welcome back");
   const [logsExpanded, setLogsExpanded] = useState(false);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     const updateGreeting = () => {
@@ -132,6 +134,58 @@ export default function DashboardPage() {
     const timer = setInterval(updateGreeting, 60000);
     return () => clearInterval(timer);
   }, []);
+
+  const cycleVehicle = (direction: "next" | "prev") => {
+    if (vehicles.length <= 1 || !activeVehicle) return;
+    const currentIndex = vehicles.findIndex((v) => v.id === activeVehicle.id);
+    if (currentIndex === -1) return;
+
+    const nextIndex =
+      direction === "next"
+        ? (currentIndex + 1) % vehicles.length
+        : (currentIndex - 1 + vehicles.length) % vehicles.length;
+
+    setActiveVehicleId(vehicles[nextIndex].id);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (vehicles.length <= 1) return;
+    const touch = e.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartRef.current || vehicles.length <= 1) return;
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - touchStartRef.current.x;
+    const deltaY = touch.clientY - touchStartRef.current.y;
+
+    if (Math.abs(deltaX) > Math.abs(deltaY) * 1.25) {
+      setSwipeOffset(Math.max(-36, Math.min(36, deltaX * 0.28)));
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStartRef.current || vehicles.length <= 1) {
+      setSwipeOffset(0);
+      return;
+    }
+
+    const touch = e.changedTouches[0];
+    const deltaX = touch.clientX - touchStartRef.current.x;
+    const deltaY = touch.clientY - touchStartRef.current.y;
+
+    if (Math.abs(deltaX) > 55 && Math.abs(deltaX) > Math.abs(deltaY) * 1.3) {
+      if (deltaX < 0) {
+        cycleVehicle("next");
+      } else {
+        cycleVehicle("prev");
+      }
+    }
+
+    touchStartRef.current = null;
+    setSwipeOffset(0);
+  };
 
   const vLogs = activeVehicle
     ? logs.filter((l) => l.vehicle_id === activeVehicle.id)
@@ -335,8 +389,17 @@ export default function DashboardPage() {
 
   return (
     <>
-      <div className="space-y-4">
-        {/* Device Clock Greeting & Vehicle Switcher Dots */}
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{
+          transform:
+            swipeOffset !== 0 ? `translateX(${swipeOffset}px)` : undefined,
+        }}
+        className="space-y-4 transition-transform duration-200 ease-out"
+      >
+        {/* Device Clock Greeting & Swipe Pagination Dots */}
         <div className="px-1 flex items-center justify-between">
           <p className="text-xs font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
             {greeting}, {user ? driverFirstName : "Guest"}

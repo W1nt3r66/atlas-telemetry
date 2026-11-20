@@ -11,6 +11,8 @@ import {
   Trash2,
   Pencil,
   X,
+  ChevronDown,
+  ListFilter,
 } from "lucide-react";
 
 type FilterTab = "all" | "fuel" | "expense" | "service" | "wash";
@@ -71,6 +73,13 @@ function LogsContent() {
   const [filterType, setFilterType] = useState<FilterTab>("all");
   const [activeSliceIdx, setActiveSliceIdx] = useState<number | null>(null);
 
+  // Collapsible section & individual row states
+  const [isLogsSectionOpen, setIsLogsSectionOpen] = useState(true);
+  const [expandedLogIds, setExpandedLogIds] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [visibleCount, setVisibleCount] = useState<number>(6);
+
   // Edit modal state
   const [editingEntry, setEditingEntry] = useState<LogEntry | null>(null);
   const [editDate, setEditDate] = useState("");
@@ -98,8 +107,16 @@ function LogsContent() {
       ["all", "fuel", "expense", "service", "wash"].includes(param)
     ) {
       setFilterType(param);
+      setVisibleCount(6);
     }
   }, [searchParams]);
+
+  const toggleLogRow = (id: string) => {
+    setExpandedLogIds((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
 
   const vehicleLogs = activeVehicle
     ? logs.filter((l) => l.vehicle_id === activeVehicle.id)
@@ -110,7 +127,11 @@ function LogsContent() {
       ? vehicleLogs
       : vehicleLogs.filter((l) => l.type === filterType);
 
-  const openEditModal = (entry: LogEntry) => {
+  const displayedLogs = filteredLogs.slice(0, visibleCount);
+  const hasMoreLogs = filteredLogs.length > visibleCount;
+
+  const openEditModal = (e: React.MouseEvent, entry: LogEntry) => {
+    e.stopPropagation();
     setEditingEntry(entry);
     setEditDate(entry.date || "");
     setEditAmount(entry.amount ? String(entry.amount) : "");
@@ -146,7 +167,13 @@ function LogsContent() {
     setEditingEntry(null);
   };
 
-  const handleDeleteLog = async (id: string, label: string, date: string) => {
+  const handleDeleteLog = async (
+    e: React.MouseEvent,
+    id: string,
+    label: string,
+    date: string,
+  ) => {
+    e.stopPropagation();
     if (!confirm(`Delete "${label}" (${date})?`)) return;
     await deleteLog(id);
   };
@@ -553,7 +580,7 @@ function LogsContent() {
             )}
           </div>
 
-          {/* Interactive Donut Pie Chart Expense Split (Full Unclipped Labels & High-Contrast Pills) */}
+          {/* Interactive Donut Pie Chart Expense Split */}
           <div className="funky-card p-5 flex flex-col justify-between gap-3.5">
             <div className="flex items-center justify-between">
               <span className="font-black text-sm flex items-center gap-1.5">
@@ -570,7 +597,6 @@ function LogsContent() {
               </div>
             ) : (
               <div className="space-y-3.5">
-                {/* Top: Centered Interactive Donut Ring */}
                 <div className="flex items-center justify-center">
                   <div className="relative w-32 h-32 flex items-center justify-center">
                     <svg
@@ -620,7 +646,6 @@ function LogsContent() {
                       })}
                     </svg>
 
-                    {/* Center Readout */}
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-2">
                       <span className="text-[9px] font-extrabold uppercase tracking-wider text-[var(--text-muted)] max-w-[74px] leading-tight">
                         {focusedSlice ? focusedSlice.shortLabel : "Total"}
@@ -645,7 +670,6 @@ function LogsContent() {
                   </div>
                 </div>
 
-                {/* Bottom: Full-Width Unclipped Category Rows */}
                 <div className="space-y-1.5">
                   {donutSlices.map((slice, idx) => {
                     const isSelected = activeSliceIdx === idx;
@@ -661,6 +685,8 @@ function LogsContent() {
                           setFilterType((prev) =>
                             prev === slice.type ? "all" : slice.type,
                           );
+                          setIsLogsSectionOpen(true);
+                          setVisibleCount(6);
                         }}
                         onMouseEnter={() => setActiveSliceIdx(idx)}
                         onMouseLeave={() => setActiveSliceIdx(null)}
@@ -710,175 +736,261 @@ function LogsContent() {
           </div>
         </div>
 
-        {/* Color-Coded Category Filter Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          <Filter className="w-4 h-4 shrink-0 text-[var(--text-muted)]" />
-          {(
-            [
-              { id: "all", label: "All", dotColor: null },
-              {
-                id: "fuel",
-                label: "Fuel",
-                dotColor: CATEGORY_THEME.fuel.stroke,
-              },
-              {
-                id: "expense",
-                label: "Parts & Expenses",
-                dotColor: CATEGORY_THEME.expense.stroke,
-              },
-              {
-                id: "service",
-                label: "Service",
-                dotColor: CATEGORY_THEME.service.stroke,
-              },
-              {
-                id: "wash",
-                label: "Wash",
-                dotColor: CATEGORY_THEME.wash.stroke,
-              },
-            ] as const
-          ).map((tab) => {
-            const active = filterType === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setFilterType(tab.id)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-extrabold shrink-0 cursor-pointer inline-flex items-center gap-1.5 ${
-                  active
-                    ? "funky-btn-primary"
-                    : "funky-btn bg-[var(--accent-secondary)]"
-                }`}
-              >
-                {tab.dotColor && (
-                  <span
-                    className="w-2 h-2 rounded-full shrink-0"
-                    style={{
-                      backgroundColor: active ? "#ffffff" : tab.dotColor,
-                    }}
-                  />
-                )}
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
+        {/* Collapsible Activity Ledger Container */}
+        <div className="funky-card p-4 sm:p-5 space-y-3.5">
+          {/* Collapsible Section Header */}
+          <button
+            type="button"
+            onClick={() => setIsLogsSectionOpen((prev) => !prev)}
+            aria-expanded={isLogsSectionOpen}
+            className="w-full flex items-center justify-between gap-3 text-left cursor-pointer"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <ListFilter className="w-4 h-4 shrink-0 text-[#025cbc] dark:text-[#3898ec]" />
+              <span className="font-black text-sm sm:text-base">
+                Activity Ledger
+              </span>
+              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)] tabular-nums">
+                {filteredLogs.length}
+              </span>
+            </div>
 
-        {/* Color-Coded Log Cards List */}
-        {filteredLogs.length === 0 ? (
-          <div className="funky-card p-8 text-center text-xs text-[var(--text-muted)]">
-            No logs found for this filter.
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredLogs.map((entry) => {
-              const catStyle =
-                CATEGORY_THEME[entry.type] || CATEGORY_THEME.expense;
-              const badgeTextColor = getReadableTextColor(entry.type);
-              const ratePerLiter =
-                entry.type === "fuel" &&
-                entry.fuel_liters &&
-                entry.fuel_liters > 0
-                  ? (entry.amount / entry.fuel_liters).toFixed(2)
-                  : null;
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-[11px] font-bold text-[var(--text-muted)]">
+                {isLogsSectionOpen ? "Collapse" : "Expand"}
+              </span>
+              <div className="w-7 h-7 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)] flex items-center justify-center">
+                <ChevronDown
+                  className={`w-4 h-4 transition-transform duration-200 ${
+                    isLogsSectionOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </div>
+            </div>
+          </button>
 
-              return (
-                <div
-                  key={entry.id}
-                  style={{
-                    borderLeftWidth: "4px",
-                    borderLeftColor: catStyle.stroke,
-                    backgroundImage: `linear-gradient(90deg, ${catStyle.cardTint} 0%, transparent 45%)`,
-                  }}
-                  className="funky-card p-4 sm:p-5 flex items-start justify-between gap-3"
-                >
-                  <div className="flex-1 min-w-0 space-y-1.5">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span
-                        style={{
-                          backgroundColor: catStyle.badgeBg,
-                          color: badgeTextColor,
-                          borderColor: catStyle.badgeBorder,
-                        }}
-                        className="shrink-0 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wide border"
-                      >
-                        {entry.category}
-                      </span>
-
-                      <span className="font-extrabold text-sm leading-snug break-words">
-                        {entry.notes || entry.category}
-                      </span>
-                    </div>
-
-                    <div className="text-xs font-medium text-[var(--text-muted)] flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                      <span>Date: {entry.date}</span>
-                      {entry.odo_reading ? (
-                        <span>
-                          • Odometer: {entry.odo_reading.toLocaleString()} km
-                        </span>
-                      ) : null}
-                      {entry.type === "fuel" && entry.fuel_liters ? (
-                        <span>
-                          • Fuel: {entry.fuel_liters} L
-                          {ratePerLiter ? ` (₹${ratePerLiter}/L)` : ""}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="shrink-0 flex items-start gap-2">
-                    <div className="text-right space-y-1.5">
-                      <div className="text-base sm:text-lg font-black tabular-nums leading-tight">
-                        {entry.amount > 0
-                          ? `₹${entry.amount.toLocaleString()}`
-                          : "Logged"}
-                      </div>
-
-                      {entry.type === "fuel" && entry.calculated_mileage ? (
-                        <div
+          {isLogsSectionOpen && (
+            <div className="space-y-3 pt-1 border-t border-[var(--border-subtle)]">
+              {/* Color-Coded Category Filter Pills */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                <Filter className="w-4 h-4 shrink-0 text-[var(--text-muted)]" />
+                {(
+                  [
+                    { id: "all", label: "All", dotColor: null },
+                    {
+                      id: "fuel",
+                      label: "Fuel",
+                      dotColor: CATEGORY_THEME.fuel.stroke,
+                    },
+                    {
+                      id: "expense",
+                      label: "Parts & Expenses",
+                      dotColor: CATEGORY_THEME.expense.stroke,
+                    },
+                    {
+                      id: "service",
+                      label: "Service",
+                      dotColor: CATEGORY_THEME.service.stroke,
+                    },
+                    {
+                      id: "wash",
+                      label: "Wash",
+                      dotColor: CATEGORY_THEME.wash.stroke,
+                    },
+                  ] as const
+                ).map((tab) => {
+                  const active = filterType === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => {
+                        setFilterType(tab.id);
+                        setVisibleCount(6);
+                      }}
+                      className={`px-3.5 py-1.5 rounded-full text-xs font-extrabold shrink-0 cursor-pointer inline-flex items-center gap-1.5 ${
+                        active
+                          ? "funky-btn-primary"
+                          : "funky-btn bg-[var(--accent-secondary)]"
+                      }`}
+                    >
+                      {tab.dotColor && (
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
                           style={{
-                            backgroundColor: catStyle.badgeBg,
-                            color: badgeTextColor,
-                            borderColor: catStyle.badgeBorder,
+                            backgroundColor: active ? "#ffffff" : tab.dotColor,
                           }}
-                          className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-black tabular-nums border"
-                        >
-                          {entry.calculated_mileage} km/l
-                        </div>
-                      ) : null}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => openEditModal(entry)}
-                      title="Edit entry"
-                      aria-label="Edit entry"
-                      className="funky-btn p-2 rounded-full bg-[var(--accent-secondary)] cursor-pointer shrink-0"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
+                        />
+                      )}
+                      <span>{tab.label}</span>
                     </button>
+                  );
+                })}
+              </div>
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleDeleteLog(
-                          entry.id,
-                          entry.notes || entry.category,
-                          entry.date,
-                        )
-                      }
-                      title="Delete entry"
-                      aria-label="Delete entry"
-                      className="funky-btn p-2 rounded-full bg-red-500/12 text-red-500 border-red-400/35 hover:bg-red-500/20 cursor-pointer shrink-0"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+              {/* Compact Accordion Log Rows */}
+              {displayedLogs.length === 0 ? (
+                <div className="py-6 text-center text-xs text-[var(--text-muted)]">
+                  No logs found for this filter.
                 </div>
-              );
-            })}
-          </div>
-        )}
+              ) : (
+                <div className="space-y-2">
+                  {displayedLogs.map((entry) => {
+                    const catStyle =
+                      CATEGORY_THEME[entry.type] || CATEGORY_THEME.expense;
+                    const badgeTextColor = getReadableTextColor(entry.type);
+                    const isRowOpen = !!expandedLogIds[entry.id];
+                    const ratePerLiter =
+                      entry.type === "fuel" &&
+                      entry.fuel_liters &&
+                      entry.fuel_liters > 0
+                        ? (entry.amount / entry.fuel_liters).toFixed(2)
+                        : null;
+
+                    return (
+                      <div
+                        key={entry.id}
+                        onClick={() => toggleLogRow(entry.id)}
+                        style={{
+                          borderLeftWidth: "4px",
+                          borderLeftColor: catStyle.stroke,
+                          backgroundImage: `linear-gradient(90deg, ${catStyle.cardTint} 0%, transparent 50%)`,
+                        }}
+                        className="rounded-2xl border border-[var(--border-color)] bg-[var(--accent-secondary)]/55 px-3.5 py-2.5 cursor-pointer transition-all hover:brightness-105"
+                      >
+                        {/* Compact Single-Line Summary Header */}
+                        <div className="flex items-center justify-between gap-2.5">
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <span
+                              style={{
+                                backgroundColor: catStyle.badgeBg,
+                                color: badgeTextColor,
+                                borderColor: catStyle.badgeBorder,
+                              }}
+                              className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide border"
+                            >
+                              {entry.category}
+                            </span>
+
+                            <div className="min-w-0 flex-1">
+                              <div className="font-extrabold text-xs sm:text-sm truncate">
+                                {entry.notes || entry.category}
+                              </div>
+                              <div className="text-[10px] font-semibold text-[var(--text-muted)]">
+                                {entry.date}
+                                {entry.odo_reading
+                                  ? ` • ${entry.odo_reading.toLocaleString()} km`
+                                  : ""}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 flex items-center gap-2">
+                            <div className="text-right">
+                              <div className="text-xs sm:text-sm font-black tabular-nums">
+                                {entry.amount > 0
+                                  ? `₹${entry.amount.toLocaleString()}`
+                                  : "Logged"}
+                              </div>
+                              {entry.type === "fuel" &&
+                              entry.calculated_mileage ? (
+                                <div
+                                  style={{ color: badgeTextColor }}
+                                  className="text-[10px] font-black tabular-nums"
+                                >
+                                  {entry.calculated_mileage} km/l
+                                </div>
+                              ) : null}
+                            </div>
+
+                            <ChevronDown
+                              className={`w-3.5 h-3.5 text-[var(--text-muted)] transition-transform duration-200 ${
+                                isRowOpen ? "rotate-180" : ""
+                              }`}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Expandable Details & Edit/Delete Controls */}
+                        {isRowOpen && (
+                          <div className="mt-2.5 pt-2.5 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <div className="text-[11px] font-medium text-[var(--text-muted)] space-y-0.5">
+                              {entry.type === "fuel" && entry.fuel_liters ? (
+                                <div>
+                                  Fuel Filled:{" "}
+                                  <strong className="text-[var(--text-main)]">
+                                    {entry.fuel_liters} L
+                                  </strong>
+                                  {ratePerLiter ? ` @ ₹${ratePerLiter}/L` : ""}
+                                </div>
+                              ) : null}
+                              {entry.notes && (
+                                <div className="break-words">
+                                  Details:{" "}
+                                  <span className="text-[var(--text-main)]">
+                                    {entry.notes}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 ml-auto">
+                              <button
+                                type="button"
+                                onClick={(e) => openEditModal(e, entry)}
+                                className="funky-btn px-3 py-1.5 rounded-full bg-[var(--accent-secondary)] text-[11px] font-extrabold inline-flex items-center gap-1 cursor-pointer"
+                              >
+                                <Pencil className="w-3 h-3" /> Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) =>
+                                  handleDeleteLog(
+                                    e,
+                                    entry.id,
+                                    entry.notes || entry.category,
+                                    entry.date,
+                                  )
+                                }
+                                className="funky-btn px-3 py-1.5 rounded-full bg-red-500/12 text-red-500 border-red-400/35 hover:bg-red-500/20 text-[11px] font-extrabold inline-flex items-center gap-1 cursor-pointer"
+                              >
+                                <Trash2 className="w-3 h-3" /> Delete
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Pagination Controls: Show More / Show Less */}
+              {filteredLogs.length > 6 && (
+                <div className="pt-1 flex items-center justify-center gap-2">
+                  {hasMoreLogs && (
+                    <button
+                      type="button"
+                      onClick={() => setVisibleCount((prev) => prev + 10)}
+                      className="funky-btn px-4 py-2 rounded-full bg-[var(--accent-secondary)] text-xs font-extrabold cursor-pointer"
+                    >
+                      Show More ({filteredLogs.length - visibleCount} remaining)
+                    </button>
+                  )}
+                  {visibleCount > 6 && (
+                    <button
+                      type="button"
+                      onClick={() => setVisibleCount(6)}
+                      className="funky-btn px-3.5 py-2 rounded-full bg-[var(--accent-secondary)] text-xs font-bold text-[var(--text-muted)] cursor-pointer"
+                    >
+                      Collapse List
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Edit Log Modal */}
