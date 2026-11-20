@@ -45,11 +45,10 @@ export default function OwnerPage() {
   };
 
   const inputClass =
-    "w-full mt-1.5 px-3.5 py-2.5 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-input)] text-[var(--text-main)] text-sm font-medium focus:outline-none";
+    "w-full mt-1.5 px-3.5 py-2.5 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-input)] text-[var(--text-main)] text-[16px] sm:text-sm font-medium focus:outline-none";
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-24">
-      {/* Uniform Floating Frosted Toast Popup (Matches Garage Page) */}
       {toastMessage && (
         <div className="fixed top-20 right-4 z-50 glass-popover px-4 py-3 flex items-center gap-2 text-xs font-black animate-in fade-in slide-in-from-top-2">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
@@ -66,7 +65,6 @@ export default function OwnerPage() {
         </p>
       </div>
 
-      {/* Sync Status Badge Card */}
       <div className="funky-card p-5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="funky-btn-primary w-10 h-10 rounded-2xl flex items-center justify-center shrink-0">
@@ -87,7 +85,6 @@ export default function OwnerPage() {
         </span>
       </div>
 
-      {/* Owner Details Form */}
       <form onSubmit={handleSaveProfile} className="funky-card p-6 space-y-4">
         <h2 className="font-black text-base">Driver Details</h2>
 
@@ -97,7 +94,7 @@ export default function OwnerPage() {
             <input
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              placeholder="e.g., Sounava Jana"
+              placeholder="Enter full name"
               className={inputClass}
             />
           </div>
@@ -107,7 +104,7 @@ export default function OwnerPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="driver@example.com"
+              placeholder="Enter email address"
               className={inputClass}
             />
           </div>
@@ -120,7 +117,7 @@ export default function OwnerPage() {
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="+91 98765 43210"
+              placeholder="Enter phone number"
               className={inputClass}
             />
           </div>
@@ -129,7 +126,7 @@ export default function OwnerPage() {
             <input
               value={city}
               onChange={(e) => setCity(e.target.value)}
-              placeholder="e.g., Kolkata"
+              placeholder="Enter city name"
               className={inputClass}
             />
           </div>
@@ -143,7 +140,6 @@ export default function OwnerPage() {
         </button>
       </form>
 
-      {/* Danger Zone */}
       <div className="funky-card p-6 space-y-3 border-red-400/30">
         <h2 className="font-black text-sm text-red-500">Danger Zone</h2>
         <p className="text-xs text-[var(--text-muted)]">
@@ -159,7 +155,6 @@ export default function OwnerPage() {
         </button>
       </div>
 
-      {/* Accounts Page Version & Rebrand Footnote */}
       <p className="text-center text-[11px] font-semibold tracking-wide text-[var(--text-muted)] pt-2">
         Motorly is now Atlas &bull; v2.0.2
       </p>

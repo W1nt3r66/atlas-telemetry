@@ -89,6 +89,56 @@ function cleanVehicleManufacturer(
   return deduped.join(" ");
 }
 
+function recalculateAllFuelMileages(
+  allLogs: LogEntry[],
+  vehicles: Vehicle[],
+): LogEntry[] {
+  const initialOdoByVehicle: Record<string, number> = {};
+  vehicles.forEach((v) => {
+    initialOdoByVehicle[v.id] = Number(v.initial_odo || 0);
+  });
+
+  const fuelLogs = allLogs
+    .filter((l) => l.type === "fuel")
+    .sort((a, b) => {
+      const dateCmp = String(a.date || "").localeCompare(String(b.date || ""));
+      if (dateCmp !== 0) return dateCmp;
+      return Number(a.odo_reading || 0) - Number(b.odo_reading || 0);
+    });
+
+  const lastOdoByVehicle: Record<string, number> = { ...initialOdoByVehicle };
+  const mileageById: Record<string, number | null> = {};
+
+  for (const entry of fuelLogs) {
+    const vId = entry.vehicle_id;
+    const odo = Number(entry.odo_reading || 0);
+    const liters = Number(entry.fuel_liters || 0);
+    const prevOdo = lastOdoByVehicle[vId] || 0;
+
+    if (odo > 0 && liters > 0 && prevOdo > 0 && odo > prevOdo) {
+      mileageById[entry.id] = Number(((odo - prevOdo) / liters).toFixed(2));
+    } else {
+      mileageById[entry.id] = null;
+    }
+
+    if (odo > prevOdo) {
+      lastOdoByVehicle[vId] = odo;
+    }
+  }
+
+  return allLogs
+    .map((l) =>
+      l.type === "fuel"
+        ? { ...l, calculated_mileage: mileageById[l.id] ?? null }
+        : l,
+    )
+    .sort((a, b) => {
+      const dateCmp = String(b.date || "").localeCompare(String(a.date || ""));
+      if (dateCmp !== 0) return dateCmp;
+      return Number(b.odo_reading || 0) - Number(a.odo_reading || 0);
+    });
+}
+
 function extractNonFuelItemLabel(e: any, fallbackCategory: string): string {
   const validParts: string[] = [];
   const seen = new Set<string>();
@@ -222,38 +272,12 @@ function parseMotorlyGarageData(raw: any, fallbackEmail?: string) {
     }
   });
 
-  actualFuelItems.sort((a: any, b: any) => {
-    const dateCmp = String(a.date || "").localeCompare(String(b.date || ""));
-    if (dateCmp !== 0) return dateCmp;
-    return Number(a.odometer || 0) - Number(b.odometer || 0);
-  });
-
-  const lastOdoByVehicle: Record<string, number> = {};
-  mappedVehicles.forEach((v) => {
-    if (v.initial_odo > 0) lastOdoByVehicle[v.id] = v.initial_odo;
-  });
-
   const mappedFuelLogs: LogEntry[] = actualFuelItems.map(
     (f: any, idx: number) => {
       const vId = f.vehicleId || f.vehicle_id || defaultVehicleId;
       const odo = Number(f.odometer ?? f.odo_reading ?? 0) || null;
       const liters = Number(f.liters ?? f.fuel_liters ?? 0) || null;
       const amount = Number(f.amount ?? 0);
-
-      let mileage = Number(f.calculated_mileage ?? 0) || null;
-      if (
-        !mileage &&
-        odo &&
-        liters &&
-        lastOdoByVehicle[vId] &&
-        odo > lastOdoByVehicle[vId]
-      ) {
-        mileage = Number(((odo - lastOdoByVehicle[vId]) / liters).toFixed(2));
-      }
-      if (odo && (!lastOdoByVehicle[vId] || odo > lastOdoByVehicle[vId])) {
-        lastOdoByVehicle[vId] = odo;
-      }
-
       const noteParts = [f.station, f.notes || f.note || f.description].filter(
         Boolean,
       );
@@ -268,7 +292,7 @@ function parseMotorlyGarageData(raw: any, fallbackEmail?: string) {
         odo_reading: odo,
         category: "Fuel",
         notes: noteParts.join(" • ") || "Fuel Fill",
-        calculated_mileage: mileage,
+        calculated_mileage: Number(f.calculated_mileage ?? 0) || null,
       };
     },
   );
@@ -302,8 +326,9 @@ function parseMotorlyGarageData(raw: any, fallbackEmail?: string) {
     },
   );
 
-  const allLogs = [...mappedFuelLogs, ...mappedExpenseLogs].sort((a, b) =>
-    b.date.localeCompare(a.date),
+  const allLogs = recalculateAllFuelMileages(
+    [...mappedFuelLogs, ...mappedExpenseLogs],
+    mappedVehicles,
   );
 
   const rawOwner = raw?.owner || {};
@@ -333,6 +358,7 @@ interface AppContextType {
   setActiveVehicleId: (id: string) => void;
   logs: LogEntry[];
   addLog: (entry: Omit<LogEntry, "id">) => Promise<void>;
+  deleteLog: (id: string) => Promise<void>;
   addVehicle: (v: Omit<Vehicle, "id">) => Promise<void>;
   updateVehicle: (id: string, updates: Partial<Vehicle>) => void;
   deleteVehicle: (id: string) => void;
@@ -540,7 +566,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       document.documentElement.classList.toggle("dark", savedTheme === "dark");
     }
 
-    // Hydrate cached vehicles/logs immediately so there is zero empty flash
     try {
       const cachedVehicles = JSON.parse(
         localStorage.getItem("atlas_vehicles") || "[]",
@@ -554,7 +579,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setActiveVehicleId(cachedVehicles[0].id);
       }
       if (Array.isArray(cachedLogs) && cachedLogs.length > 0) {
-        setLogs(cachedLogs);
+        setLogs(recalculateAllFuelMileages(cachedLogs, cachedVehicles));
       }
       if (cachedOwner) {
         setOwner(cachedOwner);
@@ -661,37 +686,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addLog = async (entry: Omit<LogEntry, "id">) => {
-    let calculated_mileage = entry.calculated_mileage ?? null;
-    const vehicle = vehicles.find((v) => v.id === entry.vehicle_id);
-
-    if (entry.type === "fuel" && entry.odo_reading && entry.fuel_liters) {
-      const prevFuelOdos = logs
-        .filter(
-          (l) =>
-            l.vehicle_id === entry.vehicle_id &&
-            l.type === "fuel" &&
-            l.odo_reading,
-        )
-        .map((l) => Number(l.odo_reading));
-
-      const baselineOdo =
-        prevFuelOdos.length > 0
-          ? Math.max(...prevFuelOdos)
-          : vehicle?.initial_odo || 0;
-
-      if (baselineOdo > 0 && entry.odo_reading > baselineOdo) {
-        const dist = entry.odo_reading - baselineOdo;
-        calculated_mileage = Number((dist / entry.fuel_liters).toFixed(2));
-      }
-    }
-
     const newLog: LogEntry = {
       ...entry,
       id: "log-" + Date.now(),
-      calculated_mileage,
     };
 
-    const updatedLogs = [newLog, ...logs];
+    const updatedLogs = recalculateAllFuelMileages([newLog, ...logs], vehicles);
     setLogs(updatedLogs);
     localStorage.setItem("atlas_logs", JSON.stringify(updatedLogs));
 
@@ -725,6 +725,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const deleteLog = async (id: string) => {
+    const updatedLogs = recalculateAllFuelMileages(
+      logs.filter((l) => l.id !== id),
+      vehicles,
+    );
+    setLogs(updatedLogs);
+    localStorage.setItem("atlas_logs", JSON.stringify(updatedLogs));
+    await pushToSupabase(user, vehicles, updatedLogs, owner, rawGarageBlob);
+  };
+
   const addVehicle = async (v: Omit<Vehicle, "id">) => {
     const newVehicle: Vehicle = { ...v, id: "veh-" + Date.now() };
     const updated = [...vehicles, newVehicle];
@@ -738,9 +748,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const updated = vehicles.map((v) =>
       v.id === id ? { ...v, ...updates } : v,
     );
+    const recalculatedLogs = recalculateAllFuelMileages(logs, updated);
     setVehicles(updated);
+    setLogs(recalculatedLogs);
     localStorage.setItem("atlas_vehicles", JSON.stringify(updated));
-    pushToSupabase(user, updated, logs, owner, rawGarageBlob);
+    localStorage.setItem("atlas_logs", JSON.stringify(recalculatedLogs));
+    pushToSupabase(user, updated, recalculatedLogs, owner, rawGarageBlob);
   };
 
   const deleteVehicle = (id: string) => {
@@ -797,6 +810,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setActiveVehicleId,
         logs,
         addLog,
+        deleteLog,
         addVehicle,
         updateVehicle,
         deleteVehicle,

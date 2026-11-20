@@ -3,11 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 
 export const maxDuration = 30;
 
-const MODELS_TO_TRY = [
-  "gemini-3.8-flash",
-  "gemini-3.5-flash-lite",
-  "gemini-3.5-flash",
-];
+const MODELS_TO_TRY = ["gemini-3.5-flash-lite", "gemini-3.8-flash"];
 
 function parseDataUrl(input?: string | null, fallbackMime = "image/jpeg") {
   if (!input) return null;
@@ -60,58 +56,45 @@ export async function POST(req: Request) {
     }
 
     const hint = scanType || entryType || "fuel";
-    const prompt = `
-      You are an OCR parser for a vehicle telemetry app in India (currency INR, distance in km, fuel in liters).
-      The uploaded photo can be a fuel pump receipt, an invoice/bill, a UPI payment screenshot, OR a car instrument cluster / digital odometer display.
-      Entry type hint: "${hint}".
-
-      Rules:
-      - If it is a fuel receipt/bill: extract total paid INR as "amount", fuel volume in liters as "fuel_liters", receipt date as "YYYY-MM-DD", and pump/station or item summary as "notes".
-      - If it is a car dashboard / odometer photo: extract the main total odometer reading (ignore Trip A / Trip B if total ODO is shown) as "odo_reading" (integer/number).
-      - If both or partial info are visible, extract everything visible and leave unseen fields as null.
-
-      Return strictly valid JSON with these exact keys:
-      {
-        "amount": number | null,
-        "fuel_liters": number | null,
-        "odo_reading": number | null,
-        "date": "YYYY-MM-DD" | null,
-        "category": "Fuel" | "Accessories" | "Insurance" | "Toll / FASTag" | "Parking" | "Repair" | "Service" | "Wash" | "Other",
-        "notes": string | null
-      }
-    `;
+    const prompt = `Extract vehicle log fields from this Indian receipt/UPI/odometer image (hint: ${hint}). Return JSON only: {"amount":number|null,"fuel_liters":number|null,"odo_reading":number|null,"date":"YYYY-MM-DD"|null,"category":"Fuel"|"Accessories"|"Insurance"|"Toll / FASTag"|"Parking"|"Repair"|"Service"|"Wash"|"Other","notes":string|null}`;
     parts.push({ text: prompt });
 
     const ai = new GoogleGenAI({ apiKey });
     let lastError: unknown = null;
 
     for (const model of MODELS_TO_TRY) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6500);
+
       try {
         const response = await ai.models.generateContent({
           model,
           contents: parts,
           config: {
             responseMimeType: "application/json",
+            temperature: 0,
+            thinkingConfig: { thinkingBudget: 0 },
+            abortSignal: controller.signal,
           },
         });
+        clearTimeout(timeoutId);
 
         const rawText = response.text || "{}";
         const cleanedJson = rawText.replace(/```json|```/g, "").trim();
         const parsed = JSON.parse(cleanedJson);
         return NextResponse.json(parsed);
       } catch (err) {
+        clearTimeout(timeoutId);
         lastError = err;
-        console.warn(`OCR model ${model} failed, trying fallback...`, err);
+        console.warn(`OCR model ${model} timed out or failed, trying next...`);
       }
     }
 
     const rawMsg =
-      lastError instanceof Error
-        ? lastError.message
-        : "All Gemini models busy.";
+      lastError instanceof Error ? lastError.message : "OCR request timed out.";
     const friendlyMsg =
-      rawMsg.includes("503") || rawMsg.includes("UNAVAILABLE")
-        ? "AI servers are momentarily busy (503). Tap again in a few seconds."
+      rawMsg.includes("abort") || rawMsg.includes("503")
+        ? "Scanner took too long. Tap once more to retry."
         : rawMsg;
 
     return NextResponse.json({ error: friendlyMsg }, { status: 503 });

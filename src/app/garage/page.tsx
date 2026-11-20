@@ -330,7 +330,7 @@ export default function GaragePage() {
               required
               value={plate}
               onChange={(e) => setPlate(e.target.value.toUpperCase())}
-              placeholder="e.g., MH01AB1234 or 25BH0980T"
+              placeholder="e.g., MH01AB1234"
               className={inputClass}
             />
           </div>

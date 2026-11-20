@@ -3,13 +3,13 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useApp } from "@/context/AppContext";
-import { FileDown, Filter, TrendingUp, PieChart } from "lucide-react";
+import { FileDown, Filter, TrendingUp, PieChart, Trash2 } from "lucide-react";
 
 type FilterTab = "all" | "fuel" | "expense" | "service" | "wash";
 
 function LogsContent() {
   const searchParams = useSearchParams();
-  const { activeVehicle, logs, owner } = useApp();
+  const { activeVehicle, logs, deleteLog, owner } = useApp();
   const [filterType, setFilterType] = useState<FilterTab>("all");
 
   useEffect(() => {
@@ -31,6 +31,11 @@ function LogsContent() {
       ? vehicleLogs
       : vehicleLogs.filter((l) => l.type === filterType);
 
+  const handleDeleteLog = async (id: string, label: string, date: string) => {
+    if (!confirm(`Delete "${label}" (${date})?`)) return;
+    await deleteLog(id);
+  };
+
   // Strictly sort fuel entries chronologically (date -> odometer) before taking last 8
   const comboPoints = [...vehicleLogs]
     .filter(
@@ -49,7 +54,7 @@ function LogsContent() {
 
   const maxM = Math.max(
     ...comboPoints.map((p) => Number(p.calculated_mileage)),
-    25,
+    10,
   );
   const minM = Math.min(
     ...comboPoints.map((p) => Number(p.calculated_mileage)),
@@ -211,7 +216,7 @@ function LogsContent() {
           <h1 className="text-2xl font-black">Telemetry &amp; Expense Logs</h1>
           <p className="text-xs text-[var(--text-muted)]">
             {activeVehicle
-              ? `${activeVehicle.name} (${activeVehicle.plate || "NO PLATE"}) • ${filteredLogs.length} entries`
+              ? `${activeVehicle.name} (${activeVehicle.plate || "IN12AB3456"}) • ${filteredLogs.length} entries`
               : `${filteredLogs.length} entries`}
           </p>
         </div>
@@ -276,7 +281,6 @@ function LogsContent() {
                 </linearGradient>
               </defs>
 
-              {/* Track Divider Baseline */}
               <line
                 x1={padX - 14}
                 y1={lineBottom + 6}
@@ -287,7 +291,6 @@ function LogsContent() {
                 strokeWidth="1"
               />
 
-              {/* Bottom Fuel Track Baseline */}
               <line
                 x1={padX - 14}
                 y1={barAreaBottom}
@@ -298,10 +301,8 @@ function LogsContent() {
                 strokeWidth="1"
               />
 
-              {/* Synchronized Column Guides + Bottom Fuel Bars (Liters) */}
               {coords.map((c) => (
                 <g key={`bar-${c.id}`}>
-                  {/* Continuous vertical axis guide connecting node -> bar -> date */}
                   <line
                     x1={c.x}
                     y1={c.yLine}
@@ -312,7 +313,6 @@ function LogsContent() {
                     strokeDasharray="2 2"
                     strokeWidth="1"
                   />
-                  {/* Fuel Volume Bar in Dedicated Lower Track */}
                   <rect
                     x={c.x - 12}
                     y={c.yBar}
@@ -322,7 +322,6 @@ function LogsContent() {
                     fill="currentColor"
                     fillOpacity="0.2"
                   />
-                  {/* Liter Value Label cleanly above bar */}
                   <text
                     x={c.x}
                     y={c.yBar - 3}
@@ -334,7 +333,6 @@ function LogsContent() {
                   >
                     {c.liters}L
                   </text>
-                  {/* Shared X-Axis Date */}
                   <text
                     x={c.x}
                     y={barAreaBottom + 14}
@@ -349,12 +347,10 @@ function LogsContent() {
                 </g>
               ))}
 
-              {/* Subtle Area Fill Under Mileage Line */}
               {areaStr && (
                 <polygon points={areaStr} fill="url(#mileageAreaGrad)" />
               )}
 
-              {/* Upper Mileage Trend Line */}
               <polyline
                 fill="none"
                 stroke="currentColor"
@@ -364,7 +360,6 @@ function LogsContent() {
                 points={polylineStr}
               />
 
-              {/* Mileage Nodes + Pill Badges */}
               {coords.map((c) => (
                 <g key={`node-${c.id}`}>
                   <circle
@@ -491,7 +486,7 @@ function LogsContent() {
             return (
               <div
                 key={entry.id}
-                className="funky-card p-4 sm:p-5 flex items-start justify-between gap-4"
+                className="funky-card p-4 sm:p-5 flex items-start justify-between gap-3"
               >
                 <div className="flex-1 min-w-0 space-y-1.5">
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -526,18 +521,36 @@ function LogsContent() {
                   </div>
                 </div>
 
-                <div className="shrink-0 text-right space-y-1.5">
-                  <div className="text-base sm:text-lg font-black tabular-nums leading-tight">
-                    {entry.amount > 0
-                      ? `₹${entry.amount.toLocaleString()}`
-                      : "Logged"}
+                <div className="shrink-0 flex items-start gap-2.5">
+                  <div className="text-right space-y-1.5">
+                    <div className="text-base sm:text-lg font-black tabular-nums leading-tight">
+                      {entry.amount > 0
+                        ? `₹${entry.amount.toLocaleString()}`
+                        : "Logged"}
+                    </div>
+
+                    {entry.type === "fuel" && entry.calculated_mileage ? (
+                      <div className="funky-btn-primary inline-block px-2.5 py-0.5 rounded-full text-[11px] font-black tabular-nums">
+                        {entry.calculated_mileage} km/l
+                      </div>
+                    ) : null}
                   </div>
 
-                  {entry.type === "fuel" && entry.calculated_mileage ? (
-                    <div className="funky-btn-primary inline-block px-2.5 py-0.5 rounded-full text-[11px] font-black tabular-nums">
-                      {entry.calculated_mileage} km/l
-                    </div>
-                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleDeleteLog(
+                        entry.id,
+                        entry.notes || entry.category,
+                        entry.date,
+                      )
+                    }
+                    title="Delete entry"
+                    aria-label="Delete entry"
+                    className="funky-btn p-2 rounded-full bg-red-500/12 text-red-500 border-red-400/35 hover:bg-red-500/20 cursor-pointer shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             );

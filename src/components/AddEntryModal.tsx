@@ -27,7 +27,6 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
-// Resize & compress iPhone photos safely with fallback to raw data URL
 async function prepareImageBase64(file: File): Promise<string> {
   const rawDataUrl = await readFileAsDataUrl(file);
 
@@ -35,7 +34,7 @@ async function prepareImageBase64(file: File): Promise<string> {
     const img = new Image();
     img.onload = () => {
       try {
-        const maxDim = 1024;
+        const maxDim = 768;
         let { width, height } = img;
 
         if (!width || !height) {
@@ -62,7 +61,7 @@ async function prepareImageBase64(file: File): Promise<string> {
           return;
         }
         ctx.drawImage(img, 0, 0, width, height);
-        const compressed = canvas.toDataURL("image/jpeg", 0.78);
+        const compressed = canvas.toDataURL("image/jpeg", 0.68);
         resolve(compressed && compressed.length > 50 ? compressed : rawDataUrl);
       } catch {
         resolve(rawDataUrl);
@@ -72,6 +71,14 @@ async function prepareImageBase64(file: File): Promise<string> {
     img.onerror = () => resolve(rawDataUrl);
     img.src = rawDataUrl;
   });
+}
+
+function sanitizePositiveNumber(raw: string): string {
+  if (raw === "") return "";
+  const cleaned = raw.replace(/-/g, "");
+  const num = Number(cleaned);
+  if (Number.isNaN(num) || num < 0) return "";
+  return cleaned;
 }
 
 export default function AddEntryModal({ isOpen, onClose }: Props) {
@@ -120,7 +127,11 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
       try {
         data = JSON.parse(rawResponseText);
       } catch {
-        setScanStatus(`Server error (${res.status}). Check Vercel logs.`);
+        setScanStatus(
+          res.status === 504
+            ? "Scan timed out (504). Tap again to retry."
+            : `Server error (${res.status}). Try again.`,
+        );
         setScanning(false);
         return;
       }
@@ -182,16 +193,19 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount && entryType !== "wash") return;
+    const numericAmount = Math.max(0, Number(amount) || 0);
+    if (numericAmount <= 0 && entryType !== "wash") return;
 
     await addLog({
       vehicle_id: activeVehicle.id,
       type: entryType,
       date,
-      amount: Number(amount) || 0,
+      amount: numericAmount,
       fuel_liters:
-        entryType === "fuel" && fuelLiters ? Number(fuelLiters) : null,
-      odo_reading: odoReading ? Number(odoReading) : null,
+        entryType === "fuel" && fuelLiters
+          ? Math.max(0, Number(fuelLiters))
+          : null,
+      odo_reading: odoReading ? Math.max(0, Number(odoReading)) : null,
       category:
         entryType === "fuel"
           ? "Fuel"
@@ -212,16 +226,16 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
   };
 
   const inputClass =
-    "block w-full min-w-0 max-w-full h-11 mt-1.5 px-3.5 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-input)] text-[var(--text-main)] text-sm font-medium appearance-none focus:outline-none focus:ring-2 focus:ring-[#0e84eb]/40";
+    "flex items-center w-full min-w-0 max-w-full h-11 mt-1.5 px-3.5 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-input)] text-[var(--text-main)] text-[16px] sm:text-sm font-medium leading-none appearance-none focus:outline-none focus:ring-2 focus:ring-[#0e84eb]/40";
 
   const notePlaceholder =
     entryType === "fuel"
-      ? "e.g., Shell V-Power Full Tank"
+      ? "Enter fuel station or fuel grade"
       : entryType === "expense"
-        ? "e.g., Amazon Microfiber Cloth / Dashcam"
+        ? "Enter item or expense description"
         : entryType === "service"
-          ? "e.g., Periodic Oil & Filter Change"
-          : "e.g., Foam Wash & Underbody Rinse";
+          ? "Enter service or maintenance details"
+          : "Enter wash or detailing notes";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm overflow-y-auto">
@@ -231,7 +245,7 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
             <h2 className="text-lg font-black leading-tight">Log Activity</h2>
             <p className="text-xs text-[var(--text-muted)] truncate">
               Vehicle: <strong>{activeVehicle.name}</strong> (
-              {activeVehicle.plate})
+              {activeVehicle.plate || "IN12AB3456"})
             </p>
           </div>
           <button
@@ -338,11 +352,16 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
               <label className="block text-xs font-bold">Amount (₹)</label>
               <input
                 type="number"
+                inputMode="decimal"
+                min="0"
                 step="0.01"
                 required={entryType !== "wash"}
-                placeholder="1500"
+                placeholder="Enter amount in INR"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
+                onChange={(e) =>
+                  setAmount(sanitizePositiveNumber(e.target.value))
+                }
                 className={inputClass}
               />
             </div>
@@ -356,11 +375,16 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
                 </label>
                 <input
                   type="number"
+                  inputMode="decimal"
+                  min="0"
                   step="0.01"
                   required
-                  placeholder="14.5"
+                  placeholder="Enter volume in liters"
                   value={fuelLiters}
-                  onChange={(e) => setFuelLiters(e.target.value)}
+                  onWheel={(e) => e.currentTarget.blur()}
+                  onChange={(e) =>
+                    setFuelLiters(sanitizePositiveNumber(e.target.value))
+                  }
                   className={inputClass}
                 />
               </div>
@@ -368,10 +392,15 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
                 <label className="block text-xs font-bold">Odometer (km)</label>
                 <input
                   type="number"
+                  inputMode="numeric"
+                  min="0"
                   required
-                  placeholder="14560"
+                  placeholder="Enter odometer in km"
                   value={odoReading}
-                  onChange={(e) => setOdoReading(e.target.value)}
+                  onWheel={(e) => e.currentTarget.blur()}
+                  onChange={(e) =>
+                    setOdoReading(sanitizePositiveNumber(e.target.value))
+                  }
                   className={inputClass}
                 />
               </div>
@@ -424,9 +453,14 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
                 </label>
                 <input
                   type="number"
-                  placeholder="14560"
+                  inputMode="numeric"
+                  min="0"
+                  placeholder="Enter odometer in km"
                   value={odoReading}
-                  onChange={(e) => setOdoReading(e.target.value)}
+                  onWheel={(e) => e.currentTarget.blur()}
+                  onChange={(e) =>
+                    setOdoReading(sanitizePositiveNumber(e.target.value))
+                  }
                   className={inputClass}
                 />
               </div>

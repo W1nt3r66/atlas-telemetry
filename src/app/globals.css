@@ -171,6 +171,38 @@ body {
   scrollbar-width: none;
 }
 
+/* Remove native up/down spinner arrows on number inputs */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Prevent iOS Safari auto-zoom on input focus & vertically center date text */
+@media screen and (max-width: 768px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+input[type="date"] {
+  display: flex;
+  align-items: center;
+}
+
+input[type="date"]::-webkit-date-and-time-value {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
 /* Launch Splash Animations */
 @keyframes verticalSwoosh {
   0%,
@@ -192,11 +224,9 @@ body {
 
 @keyframes atlasPop {
   0% {
-    transform: scale(0.92) translateY(8px);
     opacity: 0;
   }
   100% {
-    transform: scale(1) translateY(0);
     opacity: 1;
   }
 }
@@ -206,5 +236,5 @@ body {
 }
 
 .animate-atlas-pop {
-  animation: atlasPop 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: atlasPop 0.45s ease-out forwards;
 }
