@@ -1,14 +1,51 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useApp } from "@/context/AppContext";
-import { Navigation, ExternalLink, Fuel, Route } from "lucide-react";
+import {
+  Navigation,
+  ExternalLink,
+  Fuel,
+  Route,
+  MapPin,
+  LocateFixed,
+  Loader2,
+  X,
+} from "lucide-react";
+
+interface PlaceSuggestion {
+  id: string;
+  title: string;
+  subtitle: string;
+  fullLabel: string;
+  lat: number;
+  lon: number;
+}
 
 export default function TripCalculatorPage() {
   const { user, activeVehicle, logs } = useApp();
 
   const [origin, setOrigin] = useState("");
+  const [originCoords, setOriginCoords] = useState<{
+    lat: number;
+    lon: number;
+  } | null>(null);
+  const [originSuggestions, setOriginSuggestions] = useState<PlaceSuggestion[]>(
+    [],
+  );
+  const [showOriginDropdown, setShowOriginDropdown] = useState(false);
+  const [loadingOriginSug, setLoadingOriginSug] = useState(false);
+  const [locatingGps, setLocatingGps] = useState(false);
+
   const [destination, setDestination] = useState("");
+  const [destCoords, setDestCoords] = useState<{
+    lat: number;
+    lon: number;
+  } | null>(null);
+  const [destSuggestions, setDestSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [showDestDropdown, setShowDestDropdown] = useState(false);
+  const [loadingDestSug, setLoadingDestSug] = useState(false);
+
   const [fuelPrice, setFuelPrice] = useState("");
   const [roundTrip, setRoundTrip] = useState(false);
 
@@ -16,16 +53,130 @@ export default function TripCalculatorPage() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
+  const originWrapRef = useRef<HTMLDivElement | null>(null);
+  const destWrapRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     if (!user) {
       setOrigin("");
+      setOriginCoords(null);
       setDestination("");
+      setDestCoords(null);
       setFuelPrice("");
       setRoundTrip(false);
       setOneWayKm(0);
       setErrorMsg("");
     }
   }, [user]);
+
+  // Close dropdowns on outside tap/click
+  useEffect(() => {
+    const handleOutside = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node;
+      if (originWrapRef.current && !originWrapRef.current.contains(target)) {
+        setShowOriginDropdown(false);
+      }
+      if (destWrapRef.current && !destWrapRef.current.contains(target)) {
+        setShowDestDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutside);
+    document.addEventListener("touchstart", handleOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("touchstart", handleOutside);
+    };
+  }, []);
+
+  // Debounced Start Location autocomplete
+  useEffect(() => {
+    const q = origin.trim();
+    if (q.length < 2 || originCoords !== null) {
+      setOriginSuggestions([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setLoadingOriginSug(true);
+      try {
+        const res = await fetch(`/api/places?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        setOriginSuggestions(Array.isArray(data?.results) ? data.results : []);
+        setShowOriginDropdown(true);
+      } catch {
+        setOriginSuggestions([]);
+      } finally {
+        setLoadingOriginSug(false);
+      }
+    }, 260);
+
+    return () => clearTimeout(timer);
+  }, [origin, originCoords]);
+
+  // Debounced Destination autocomplete
+  useEffect(() => {
+    const q = destination.trim();
+    if (q.length < 2 || destCoords !== null) {
+      setDestSuggestions([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setLoadingDestSug(true);
+      try {
+        const res = await fetch(`/api/places?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        setDestSuggestions(Array.isArray(data?.results) ? data.results : []);
+        setShowDestDropdown(true);
+      } catch {
+        setDestSuggestions([]);
+      } finally {
+        setLoadingDestSug(false);
+      }
+    }, 260);
+
+    return () => clearTimeout(timer);
+  }, [destination, destCoords]);
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setErrorMsg("GPS location is not supported on this browser.");
+      return;
+    }
+    setLocatingGps(true);
+    setErrorMsg("");
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        try {
+          const res = await fetch(
+            `/api/places?lat=${latitude}&lon=${longitude}`,
+          );
+          const data = await res.json();
+          const place: PlaceSuggestion | undefined = data?.results?.[0];
+          setOrigin(
+            place?.fullLabel ||
+              `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
+          );
+          setOriginCoords({ lat: latitude, lon: longitude });
+          setShowOriginDropdown(false);
+        } catch {
+          setOrigin(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+          setOriginCoords({ lat: latitude, lon: longitude });
+        } finally {
+          setLocatingGps(false);
+        }
+      },
+      () => {
+        setLocatingGps(false);
+        setErrorMsg(
+          "Location permission denied. Type a start location instead.",
+        );
+      },
+      { enableHighAccuracy: true, timeout: 8000 },
+    );
+  };
 
   const vehicleMileages = activeVehicle
     ? logs
@@ -44,33 +195,41 @@ export default function TripCalculatorPage() {
         )
       : 0;
 
+  const resolveCoords = async (
+    text: string,
+    selected: { lat: number; lon: number } | null,
+  ) => {
+    if (selected) return selected;
+    const res = await fetch(`/api/places?q=${encodeURIComponent(text)}`);
+    const data = await res.json();
+    const first: PlaceSuggestion | undefined = data?.results?.[0];
+    if (first) return { lat: first.lat, lon: first.lon };
+    return null;
+  };
+
   const calculateRoute = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!origin.trim() || !destination.trim()) return;
     setLoading(true);
     setErrorMsg("");
+    setShowOriginDropdown(false);
+    setShowDestDropdown(false);
 
     try {
-      const geo1 = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(
-          origin,
-        )}`,
-      ).then((r) => r.json());
-      const geo2 = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(
-          destination,
-        )}`,
-      ).then((r) => r.json());
+      const [p1, p2] = await Promise.all([
+        resolveCoords(origin, originCoords),
+        resolveCoords(destination, destCoords),
+      ]);
 
-      if (!geo1?.[0] || !geo2?.[0]) {
+      if (!p1 || !p2) {
         setErrorMsg(
-          "Could not locate one of those places. Try adding city/state name.",
+          "Could not locate one of those places. Select a suggestion from the dropdown.",
         );
         setLoading(false);
         return;
       }
 
-      const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${geo1[0].lon},${geo1[0].lat};${geo2[0].lon},${geo2[0].lat}?overview=false`;
+      const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${p1.lon},${p1.lat};${p2.lon},${p2.lat}?overview=false`;
       const routeData = await fetch(osrmUrl).then((r) => r.json());
 
       if (routeData?.routes?.[0]?.distance) {
@@ -88,7 +247,7 @@ export default function TripCalculatorPage() {
     oneWayKm > 0 ? (roundTrip ? oneWayKm * 2 : oneWayKm) : 0;
   const fuelNeeded =
     totalDistance > 0 && avgMileage > 0 ? totalDistance / avgMileage : 0;
-  const numericFuelPrice = Number(fuelPrice) || 0;
+  const numericFuelPrice = Math.max(0, Number(fuelPrice) || 0);
   const estimatedCost =
     fuelNeeded > 0 && numericFuelPrice > 0 ? fuelNeeded * numericFuelPrice : 0;
 
@@ -100,7 +259,7 @@ export default function TripCalculatorPage() {
       : "https://www.google.com/maps";
 
   const inputClass =
-    "w-full mt-1.5 px-3.5 py-2.5 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-input)] text-[var(--text-main)] text-sm font-medium focus:outline-none";
+    "w-full mt-1.5 px-3.5 py-2.5 pr-9 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-input)] text-[var(--text-main)] text-[16px] sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#0e84eb]/40";
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
@@ -115,23 +274,150 @@ export default function TripCalculatorPage() {
 
       <form onSubmit={calculateRoute} className="funky-card p-6 space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs font-bold">Start Location</label>
-            <input
-              value={origin}
-              onChange={(e) => setOrigin(e.target.value)}
-              placeholder="Enter start location"
-              className={inputClass}
-            />
+          {/* Start Location with Live Maps Suggestions + GPS */}
+          <div ref={originWrapRef} className="relative">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold">Start Location</label>
+              <button
+                type="button"
+                disabled={locatingGps}
+                onClick={handleUseCurrentLocation}
+                className="inline-flex items-center gap-1 text-[11px] font-extrabold text-[#025cbc] dark:text-[#3898ec] hover:opacity-80 cursor-pointer disabled:opacity-50"
+              >
+                {locatingGps ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <LocateFixed className="w-3 h-3" />
+                )}
+                <span>Use GPS</span>
+              </button>
+            </div>
+
+            <div className="relative">
+              <input
+                value={origin}
+                onFocus={() => {
+                  if (originSuggestions.length > 0) setShowOriginDropdown(true);
+                }}
+                onChange={(e) => {
+                  setOrigin(e.target.value);
+                  setOriginCoords(null);
+                }}
+                placeholder="Search start city or place"
+                autoComplete="off"
+                className={inputClass}
+              />
+              {loadingOriginSug ? (
+                <Loader2 className="w-4 h-4 animate-spin text-[var(--text-muted)] absolute right-3 top-1/2 -translate-y-1/2 mt-0.5" />
+              ) : origin ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOrigin("");
+                    setOriginCoords(null);
+                    setOriginSuggestions([]);
+                  }}
+                  aria-label="Clear start location"
+                  className="text-[var(--text-muted)] hover:text-[var(--text-main)] absolute right-3 top-1/2 -translate-y-1/2 mt-0.5 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              ) : null}
+            </div>
+
+            {showOriginDropdown && originSuggestions.length > 0 && (
+              <div className="glass-popover absolute left-0 right-0 z-40 mt-1.5 overflow-hidden divide-y divide-[var(--border-subtle)] max-h-56 overflow-y-auto">
+                {originSuggestions.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setOrigin(item.fullLabel);
+                      setOriginCoords({ lat: item.lat, lon: item.lon });
+                      setShowOriginDropdown(false);
+                    }}
+                    className="w-full px-3.5 py-2.5 text-left hover:bg-white/20 dark:hover:bg-white/10 transition flex items-start gap-2.5 cursor-pointer"
+                  >
+                    <MapPin className="w-4 h-4 shrink-0 mt-0.5 text-[#025cbc] dark:text-[#3898ec]" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-extrabold truncate">
+                        {item.title}
+                      </div>
+                      {item.subtitle && (
+                        <div className="text-[11px] text-[var(--text-muted)] truncate">
+                          {item.subtitle}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-          <div>
-            <label className="text-xs font-bold">Destination</label>
-            <input
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
-              placeholder="Enter destination"
-              className={inputClass}
-            />
+
+          {/* Destination with Live Maps Suggestions */}
+          <div ref={destWrapRef} className="relative">
+            <label className="block text-xs font-bold">Destination</label>
+            <div className="relative">
+              <input
+                value={destination}
+                onFocus={() => {
+                  if (destSuggestions.length > 0) setShowDestDropdown(true);
+                }}
+                onChange={(e) => {
+                  setDestination(e.target.value);
+                  setDestCoords(null);
+                }}
+                placeholder="Search destination city or place"
+                autoComplete="off"
+                className={inputClass}
+              />
+              {loadingDestSug ? (
+                <Loader2 className="w-4 h-4 animate-spin text-[var(--text-muted)] absolute right-3 top-1/2 -translate-y-1/2 mt-0.5" />
+              ) : destination ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDestination("");
+                    setDestCoords(null);
+                    setDestSuggestions([]);
+                  }}
+                  aria-label="Clear destination"
+                  className="text-[var(--text-muted)] hover:text-[var(--text-main)] absolute right-3 top-1/2 -translate-y-1/2 mt-0.5 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              ) : null}
+            </div>
+
+            {showDestDropdown && destSuggestions.length > 0 && (
+              <div className="glass-popover absolute left-0 right-0 z-40 mt-1.5 overflow-hidden divide-y divide-[var(--border-subtle)] max-h-56 overflow-y-auto">
+                {destSuggestions.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setDestination(item.fullLabel);
+                      setDestCoords({ lat: item.lat, lon: item.lon });
+                      setShowDestDropdown(false);
+                    }}
+                    className="w-full px-3.5 py-2.5 text-left hover:bg-white/20 dark:hover:bg-white/10 transition flex items-start gap-2.5 cursor-pointer"
+                  >
+                    <MapPin className="w-4 h-4 shrink-0 mt-0.5 text-[#025cbc] dark:text-[#3898ec]" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-extrabold truncate">
+                        {item.title}
+                      </div>
+                      {item.subtitle && (
+                        <div className="text-[11px] text-[var(--text-muted)] truncate">
+                          {item.subtitle}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -140,11 +426,14 @@ export default function TripCalculatorPage() {
             <label className="text-xs font-bold">Fuel Rate (₹/Liter)</label>
             <input
               type="number"
+              inputMode="decimal"
+              min="0"
               step="0.01"
               value={fuelPrice}
-              onChange={(e) => setFuelPrice(e.target.value)}
-              placeholder="0.00"
-              className={inputClass}
+              onWheel={(e) => e.currentTarget.blur()}
+              onChange={(e) => setFuelPrice(e.target.value.replace(/-/g, ""))}
+              placeholder="Fuel rate in INR"
+              className="w-full mt-1.5 px-3.5 py-2.5 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-input)] text-[var(--text-main)] text-[16px] sm:text-sm font-medium focus:outline-none"
             />
           </div>
 
