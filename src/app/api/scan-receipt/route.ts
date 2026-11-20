@@ -15,28 +15,20 @@ export async function GET(req: Request) {
   const lat = searchParams.get("lat");
   const lon = searchParams.get("lon");
 
-  // Reverse geocode when user taps "Use Current GPS"
+  // Reverse geocode via BigDataCloud (free, zero-key, instant from Vercel)
   if (lat && lon) {
     try {
-      const revUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${encodeURIComponent(
+      const revUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${encodeURIComponent(
         lat,
-      )}&lon=${encodeURIComponent(lon)}&zoom=14`;
-      const revRes = await fetch(revUrl, {
-        headers: { "User-Agent": "AtlasTelemetryApp/2.0" },
-      });
+      )}&longitude=${encodeURIComponent(lon)}&localityLanguage=en`;
+      const revRes = await fetch(revUrl);
       const revData = await revRes.json();
-      const addr = revData?.address || {};
       const title =
-        addr.suburb ||
-        addr.neighbourhood ||
-        addr.city_district ||
-        addr.town ||
-        addr.city ||
-        revData?.name ||
-        "Current Location";
+        revData?.locality || revData?.city || "Current GPS Location";
       const subtitle = [
-        addr.city || addr.town || addr.state_district,
-        addr.state,
+        revData?.city && revData.city !== title ? revData.city : null,
+        revData?.principalSubdivision,
+        revData?.countryName,
       ]
         .filter(Boolean)
         .join(", ");
@@ -62,90 +54,94 @@ export async function GET(req: Request) {
     return NextResponse.json({ results: [] });
   }
 
+  const results: PlaceSuggestion[] = [];
+  const seen = new Set<string>();
+
+  // 1. ArcGIS World Geocoder (handles exact schools, landmarks, highways & cities in India)
   try {
-    // Photon API (fast autocomplete biased toward India center 22.5, 79.0)
-    const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(
+    const arcUrl = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?SingleLine=${encodeURIComponent(
       q,
-    )}&limit=6&lat=22.5&lon=79.0&lang=en`;
-    const res = await fetch(photonUrl, {
-      headers: { "User-Agent": "AtlasTelemetryApp/2.0" },
-    });
+    )}&countryCode=IND&maxLocations=6&outFields=PlaceName,Place_addr,City,Region&f=pjson`;
+    const arcRes = await fetch(arcUrl);
+    if (arcRes.ok) {
+      const arcData = await arcRes.json();
+      const candidates = Array.isArray(arcData?.candidates)
+        ? arcData.candidates
+        : [];
 
-    if (res.ok) {
-      const data = await res.json();
-      const features = Array.isArray(data?.features) ? data.features : [];
-      const seen = new Set<string>();
-      const results: PlaceSuggestion[] = [];
-
-      for (const f of features) {
-        const props = f?.properties || {};
-        const coords = f?.geometry?.coordinates || [];
-        const pLon = Number(coords[0]);
-        const pLat = Number(coords[1]);
+      for (const c of candidates) {
+        const pLon = Number(c?.location?.x);
+        const pLat = Number(c?.location?.y);
         if (!pLat || !pLon) continue;
 
-        const title =
-          props.name || props.street || props.city || props.district || q;
-        const subParts = [
-          props.city && props.city !== title ? props.city : null,
-          props.district && props.district !== title ? props.district : null,
-          props.state,
-          props.country,
-        ].filter(Boolean);
-        const subtitle = subParts.join(", ");
+        const addrStr = String(c?.address || "");
+        const parts = addrStr
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const title = c?.attributes?.PlaceName || parts[0] || q;
+        const subtitle =
+          parts.slice(1).join(", ") ||
+          [c?.attributes?.City, c?.attributes?.Region, "India"]
+            .filter(Boolean)
+            .join(", ");
         const fullLabel = subtitle ? `${title}, ${subtitle}` : title;
-
         const key = fullLabel.toLowerCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
 
-        results.push({
-          id: `${props.osm_id || results.length}-${pLat.toFixed(4)}`,
-          title,
-          subtitle,
-          fullLabel,
-          lat: pLat,
-          lon: pLon,
-        });
-      }
-
-      if (results.length > 0) {
-        return NextResponse.json({ results });
+        if (!seen.has(key)) {
+          seen.add(key);
+          results.push({
+            id: `arc-${results.length}-${pLat.toFixed(4)}`,
+            title,
+            subtitle,
+            fullLabel,
+            lat: pLat,
+            lon: pLon,
+          });
+        }
       }
     }
   } catch {
-    // Fall through to Nominatim fallback
+    // Continue to Open-Meteo fallback
   }
 
-  // Fallback to Nominatim search
-  try {
-    const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&countrycodes=in&q=${encodeURIComponent(
-      q,
-    )}`;
-    const nomRes = await fetch(nomUrl, {
-      headers: { "User-Agent": "AtlasTelemetryApp/2.0" },
-    });
-    const nomData = await nomRes.json();
-    const results: PlaceSuggestion[] = (
-      Array.isArray(nomData) ? nomData : []
-    ).map((item: any, idx: number) => {
-      const parts = String(item.display_name || "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-      const title = parts[0] || q;
-      const subtitle = parts.slice(1, 4).join(", ");
-      return {
-        id: String(item.place_id || idx),
-        title,
-        subtitle,
-        fullLabel: subtitle ? `${title}, ${subtitle}` : title,
-        lat: Number(item.lat),
-        lon: Number(item.lon),
-      };
-    });
-    return NextResponse.json({ results });
-  } catch {
-    return NextResponse.json({ results: [] });
+  // 2. Open-Meteo Geocoding API (fast global CDN for cities/towns)
+  if (results.length < 4) {
+    try {
+      const omUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
+        q,
+      )}&count=5&language=en&format=json`;
+      const omRes = await fetch(omUrl);
+      if (omRes.ok) {
+        const omData = await omRes.json();
+        const items = Array.isArray(omData?.results) ? omData.results : [];
+        for (const item of items) {
+          const pLat = Number(item.latitude);
+          const pLon = Number(item.longitude);
+          if (!pLat || !pLon) continue;
+          const title = item.name || q;
+          const subtitle = [item.admin2, item.admin1, item.country]
+            .filter(Boolean)
+            .join(", ");
+          const fullLabel = subtitle ? `${title}, ${subtitle}` : title;
+          const key = fullLabel.toLowerCase();
+          if (!seen.has(key)) {
+            seen.add(key);
+            results.push({
+              id: `om-${item.id || results.length}`,
+              title,
+              subtitle,
+              fullLabel,
+              lat: pLat,
+              lon: pLon,
+            });
+          }
+        }
+      }
+    } catch {
+      // Ignore
+    }
   }
+
+  return NextResponse.json({ results: results.slice(0, 6) });
 }

@@ -22,6 +22,25 @@ interface PlaceSuggestion {
   lon: number;
 }
 
+function haversineRoadKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const straightKm = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+  return Number((straightKm * 1.24).toFixed(1));
+}
+
 export default function TripCalculatorPage() {
   const { user, activeVehicle, logs } = useApp();
 
@@ -69,7 +88,6 @@ export default function TripCalculatorPage() {
     }
   }, [user]);
 
-  // Close dropdowns on outside tap/click
   useEffect(() => {
     const handleOutside = (e: MouseEvent | TouchEvent) => {
       const target = e.target as Node;
@@ -101,14 +119,15 @@ export default function TripCalculatorPage() {
       try {
         const res = await fetch(`/api/places?q=${encodeURIComponent(q)}`);
         const data = await res.json();
-        setOriginSuggestions(Array.isArray(data?.results) ? data.results : []);
-        setShowOriginDropdown(true);
+        const list = Array.isArray(data?.results) ? data.results : [];
+        setOriginSuggestions(list);
+        setShowOriginDropdown(list.length > 0);
       } catch {
         setOriginSuggestions([]);
       } finally {
         setLoadingOriginSug(false);
       }
-    }, 260);
+    }, 240);
 
     return () => clearTimeout(timer);
   }, [origin, originCoords]);
@@ -126,14 +145,15 @@ export default function TripCalculatorPage() {
       try {
         const res = await fetch(`/api/places?q=${encodeURIComponent(q)}`);
         const data = await res.json();
-        setDestSuggestions(Array.isArray(data?.results) ? data.results : []);
-        setShowDestDropdown(true);
+        const list = Array.isArray(data?.results) ? data.results : [];
+        setDestSuggestions(list);
+        setShowDestDropdown(list.length > 0);
       } catch {
         setDestSuggestions([]);
       } finally {
         setLoadingDestSug(false);
       }
-    }, 260);
+    }, 240);
 
     return () => clearTimeout(timer);
   }, [destination, destCoords]);
@@ -223,22 +243,29 @@ export default function TripCalculatorPage() {
 
       if (!p1 || !p2) {
         setErrorMsg(
-          "Could not locate one of those places. Select a suggestion from the dropdown.",
+          "Could not locate one of those places. Pick a suggestion from the dropdown.",
         );
         setLoading(false);
         return;
       }
 
-      const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${p1.lon},${p1.lat};${p2.lon},${p2.lat}?overview=false`;
-      const routeData = await fetch(osrmUrl).then((r) => r.json());
+      try {
+        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${p1.lon},${p1.lat};${p2.lon},${p2.lat}?overview=false`;
+        const routeRes = await fetch(osrmUrl);
+        const routeData = await routeRes.json();
 
-      if (routeData?.routes?.[0]?.distance) {
-        setOneWayKm(Number((routeData.routes[0].distance / 1000).toFixed(1)));
-      } else {
-        setErrorMsg("Driving route unavailable between those points.");
+        if (routeData?.routes?.[0]?.distance) {
+          setOneWayKm(Number((routeData.routes[0].distance / 1000).toFixed(1)));
+          setLoading(false);
+          return;
+        }
+      } catch {
+        // Fallback to road-adjusted geodesic estimate if OSRM is busy
       }
+
+      setOneWayKm(haversineRoadKm(p1.lat, p1.lon, p2.lat, p2.lon));
     } catch {
-      setErrorMsg("Route lookup failed. Check internet connection.");
+      setErrorMsg("Route lookup failed. Please try again.");
     }
     setLoading(false);
   };
