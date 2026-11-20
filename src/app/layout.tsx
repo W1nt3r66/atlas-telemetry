@@ -9,6 +9,12 @@ import LaunchSplash from "@/components/LaunchSplash";
 export const metadata: Metadata = {
   title: "Atlas — Telemetry, Mileage & Garage",
   description: "Minimal F1-inspired car telemetry, mileage & convoy app",
+  applicationName: "Atlas",
+  appleWebApp: {
+    capable: true,
+    title: "Atlas",
+    statusBarStyle: "default",
+  },
 };
 
 export default function RootLayout({

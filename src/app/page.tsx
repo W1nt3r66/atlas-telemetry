@@ -50,6 +50,15 @@ function getLocalDateString(daysOffset = 0): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function getMonthPrefix(monthOffset = 0): string {
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + monthOffset);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${yyyy}-${mm}`;
+}
+
 function getRenewalCountdown(dateStr?: string) {
   if (!dateStr) return null;
   const target = new Date(`${dateStr}T00:00:00`);
@@ -212,10 +221,21 @@ export default function DashboardPage() {
   const latestMileage =
     validMileages.length > 0 ? validMileages[0].toFixed(2) : "0.0";
 
-  const currentMonth = new Date().toISOString().slice(0, 7);
+  const currentMonth = getMonthPrefix(0);
+  const previousMonth = getMonthPrefix(-1);
+
   const monthlySpend = vLogs
     .filter((l) => l.date.startsWith(currentMonth))
-    .reduce((sum, l) => sum + Number(l.amount), 0);
+    .reduce((sum, l) => sum + Number(l.amount || 0), 0);
+
+  const lastMonthSpend = vLogs
+    .filter((l) => l.date.startsWith(previousMonth))
+    .reduce((sum, l) => sum + Number(l.amount || 0), 0);
+
+  const monthlyDeltaPct =
+    lastMonthSpend > 0
+      ? Math.round(((monthlySpend - lastMonthSpend) / lastMonthSpend) * 100)
+      : null;
 
   const totalFuelLiters = fuelLogs.reduce(
     (sum, l) => sum + Number(l.fuel_liters || 0),
@@ -632,22 +652,45 @@ export default function DashboardPage() {
               </div>
             </Link>
 
-            {/* Right: Monthly Spend + Radial Wash & Service Rings */}
+            {/* Right: Monthly Spend with MoM Trend Pill + Radial Wash & Service Rings */}
             <div className="sm:col-span-6 flex flex-col justify-between gap-4">
               <Link
                 href={user ? "/logs?filter=all" : "/"}
-                className="flex items-center justify-between px-4 py-3 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-color)] hover:brightness-105 transition-all"
+                className="flex items-center justify-between gap-2 px-4 py-3 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-color)] hover:brightness-105 transition-all"
               >
-                <div>
+                <div className="min-w-0">
                   <div className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-[var(--text-muted)]">
                     This Month
                   </div>
-                  <div className="text-xs font-semibold text-[var(--text-muted)]">
-                    Fuel &amp; care
+                  <div className="text-xs font-semibold text-[var(--text-muted)] truncate">
+                    {lastMonthSpend > 0
+                      ? `vs ₹${Math.round(lastMonthSpend).toLocaleString()} last mo`
+                      : "Fuel & care"}
                   </div>
                 </div>
-                <div className="text-2xl font-black tabular-nums">
-                  ₹{monthlySpend.toLocaleString()}
+
+                <div className="text-right shrink-0 flex flex-col items-end gap-1">
+                  <div className="text-2xl font-black tabular-nums leading-none">
+                    ₹{monthlySpend.toLocaleString()}
+                  </div>
+
+                  {monthlyDeltaPct !== null && (
+                    <span
+                      className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-black border tabular-nums ${
+                        monthlyDeltaPct < 0
+                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-400/40"
+                          : monthlyDeltaPct > 0
+                            ? "bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-400/40"
+                            : "bg-white/20 dark:bg-white/10 text-[var(--text-muted)] border-[var(--border-color)]"
+                      }`}
+                    >
+                      {monthlyDeltaPct < 0
+                        ? `↓ ${Math.abs(monthlyDeltaPct)}%`
+                        : monthlyDeltaPct > 0
+                          ? `↑ ${monthlyDeltaPct}%`
+                          : "0%"}
+                    </span>
+                  )}
                 </div>
               </Link>
 
