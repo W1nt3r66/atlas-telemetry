@@ -34,6 +34,9 @@ export interface Vehicle {
   last_service_odo: number;
   last_service_date: string;
   last_wash_date: string;
+  insurance_expiry?: string;
+  puc_expiry?: string;
+  rc_expiry?: string;
 }
 
 export interface LogEntry {
@@ -248,6 +251,9 @@ function parseMotorlyGarageData(raw: any, fallbackEmail?: string) {
       last_service_odo: Number(v.last_service_odo ?? v.initial_odo ?? 0),
       last_service_date: v.last_service_date || today,
       last_wash_date: v.last_wash_date || today,
+      insurance_expiry: v.insurance_expiry || "",
+      puc_expiry: v.puc_expiry || "",
+      rc_expiry: v.rc_expiry || "",
     };
   });
 
@@ -447,6 +453,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           last_service_odo: v.last_service_odo,
           last_service_date: v.last_service_date,
           last_wash_date: v.last_wash_date,
+          insurance_expiry: v.insurance_expiry || "",
+          puc_expiry: v.puc_expiry || "",
+          rc_expiry: v.rc_expiry || "",
         };
       });
 

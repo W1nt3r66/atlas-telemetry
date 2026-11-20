@@ -15,9 +15,9 @@ import {
   Check,
   X,
   CheckCircle2,
+  ShieldCheck,
 } from "lucide-react";
 
-// Validates Indian State Plates (e.g., WB02AB1234, MH12DE1433) and Bharat Series Plates (e.g., 25BH0980T)
 const INDIAN_PLATE_REGEX =
   /^(?:[A-Z]{2}[0-9]{1,2}[A-Z]{0,3}[0-9]{4}|[0-9]{2}BH[0-9]{4}[A-Z]{1,2})$/;
 
@@ -45,12 +45,18 @@ export default function GaragePage() {
   const [wheelerType, setWheelerType] = useState<WheelerType>("4-Wheeler");
   const [initialOdo, setInitialOdo] = useState("");
   const [lastServiceOdo, setLastServiceOdo] = useState("");
+  const [insuranceExpiry, setInsuranceExpiry] = useState("");
+  const [pucExpiry, setPucExpiry] = useState("");
+  const [rcExpiry, setRcExpiry] = useState("");
   const [formError, setFormError] = useState("");
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editPlate, setEditPlate] = useState("");
   const [editServiceInterval, setEditServiceInterval] = useState("10000");
+  const [editInsuranceExpiry, setEditInsuranceExpiry] = useState("");
+  const [editPucExpiry, setEditPucExpiry] = useState("");
+  const [editRcExpiry, setEditRcExpiry] = useState("");
   const [editError, setEditError] = useState("");
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -77,7 +83,7 @@ export default function GaragePage() {
       !initialOdo.trim() ||
       !lastServiceOdo.trim()
     ) {
-      setFormError("All fields are mandatory. Please complete every field.");
+      setFormError("All mandatory fields (*) must be completed.");
       return;
     }
 
@@ -103,6 +109,9 @@ export default function GaragePage() {
       last_service_odo: Number(lastServiceOdo),
       last_service_date: today,
       last_wash_date: today,
+      insurance_expiry: insuranceExpiry || "",
+      puc_expiry: pucExpiry || "",
+      rc_expiry: rcExpiry || "",
     });
 
     setName("");
@@ -112,6 +121,9 @@ export default function GaragePage() {
     setServiceInterval("");
     setInitialOdo("");
     setLastServiceOdo("");
+    setInsuranceExpiry("");
+    setPucExpiry("");
+    setRcExpiry("");
     triggerToast("Added to garage!");
   };
 
@@ -120,6 +132,9 @@ export default function GaragePage() {
     setEditName(v.name);
     setEditPlate(v.plate);
     setEditServiceInterval(String(v.service_interval_km || 10000));
+    setEditInsuranceExpiry(v.insurance_expiry || "");
+    setEditPucExpiry(v.puc_expiry || "");
+    setEditRcExpiry(v.rc_expiry || "");
     setEditError("");
   };
 
@@ -129,7 +144,7 @@ export default function GaragePage() {
     const cleanPlate = editPlate.replace(/[\s-]/g, "").toUpperCase();
 
     if (!cleanName || !cleanPlate || !editServiceInterval.trim()) {
-      setEditError("All fields are required.");
+      setEditError("Name, plate, and service interval are required.");
       return;
     }
 
@@ -142,17 +157,19 @@ export default function GaragePage() {
       name: cleanName,
       plate: cleanPlate,
       service_interval_km: Number(editServiceInterval),
+      insurance_expiry: editInsuranceExpiry || "",
+      puc_expiry: editPucExpiry || "",
+      rc_expiry: editRcExpiry || "",
     });
     setEditingId(null);
-    triggerToast("Vehicle modified!");
+    triggerToast("Vehicle & renewal dates saved!");
   };
 
   const inputClass =
-    "w-full mt-1.5 px-3.5 py-2.5 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-input)] text-[var(--text-main)] text-sm font-medium focus:outline-none";
+    "flex items-center w-full h-11 mt-1.5 px-3.5 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-input)] text-[var(--text-main)] text-[16px] sm:text-sm font-medium leading-none appearance-none focus:outline-none";
 
   return (
     <div className="space-y-6">
-      {/* Floating Pop-Up Toast on Add / Modify */}
       {toastMessage && (
         <div className="fixed top-20 right-4 z-50 glass-modal px-4 py-3 shadow-2xl flex items-center gap-2 text-xs font-black animate-in fade-in slide-in-from-top-2">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
@@ -165,8 +182,8 @@ export default function GaragePage() {
           <Warehouse className="w-6 h-6" /> My Garage
         </h1>
         <p className="text-xs text-[var(--text-muted)]">
-          Swipe sideways across your vehicles below or add a new
-          Indian-registered vehicle.
+          Manage your vehicles, service intervals, and Insurance / PUC / RC
+          renewal dates.
         </p>
       </div>
 
@@ -180,41 +197,102 @@ export default function GaragePage() {
             return (
               <div
                 key={v.id}
-                className={`funky-card p-5 space-y-3 shrink-0 w-[285px] sm:w-[320px] snap-start ${
+                className={`funky-card p-5 space-y-3 shrink-0 w-[300px] sm:w-[340px] snap-start ${
                   isActive ? "ring-2 ring-[var(--accent-primary)]" : ""
                 }`}
               >
                 {isEditing ? (
                   <div className="space-y-2.5">
-                    <input
-                      required
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      placeholder="Vehicle Nickname"
-                      className={inputClass}
-                    />
-                    <input
-                      required
-                      value={editPlate}
-                      onChange={(e) =>
-                        setEditPlate(e.target.value.toUpperCase())
-                      }
-                      placeholder="WB02AB1234 or 25BH0980T"
-                      className={inputClass}
-                    />
-                    <input
-                      required
-                      type="number"
-                      value={editServiceInterval}
-                      onChange={(e) => setEditServiceInterval(e.target.value)}
-                      placeholder="Service Interval (km)"
-                      className={inputClass}
-                    />
+                    <div>
+                      <label className="text-[11px] font-bold">Nickname</label>
+                      <input
+                        required
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        placeholder="Vehicle Nickname"
+                        className={inputClass}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[11px] font-bold">Plate</label>
+                        <input
+                          required
+                          value={editPlate}
+                          onChange={(e) =>
+                            setEditPlate(e.target.value.toUpperCase())
+                          }
+                          placeholder="25BH0980T"
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold">
+                          Service (km)
+                        </label>
+                        <input
+                          required
+                          type="number"
+                          value={editServiceInterval}
+                          onChange={(e) =>
+                            setEditServiceInterval(e.target.value)
+                          }
+                          placeholder="10000"
+                          className={inputClass}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-1 border-t border-[var(--border-subtle)] space-y-2">
+                      <div className="text-[11px] font-extrabold flex items-center gap-1 text-[#025cbc] dark:text-[#3898ec]">
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>Compliance Expiry Dates</span>
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold">
+                          Insurance Expiry
+                        </label>
+                        <input
+                          type="date"
+                          value={editInsuranceExpiry}
+                          onChange={(e) =>
+                            setEditInsuranceExpiry(e.target.value)
+                          }
+                          className={inputClass}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[11px] font-bold">
+                            PUC Expiry
+                          </label>
+                          <input
+                            type="date"
+                            value={editPucExpiry}
+                            onChange={(e) => setEditPucExpiry(e.target.value)}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[11px] font-bold">
+                            RC / Fitness
+                          </label>
+                          <input
+                            type="date"
+                            value={editRcExpiry}
+                            onChange={(e) => setEditRcExpiry(e.target.value)}
+                            className={inputClass}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
                     {editError && (
                       <p className="text-[11px] font-bold text-red-500">
                         {editError}
                       </p>
                     )}
+
                     <div className="flex items-center gap-2 pt-1">
                       <button
                         type="button"
@@ -251,7 +329,7 @@ export default function GaragePage() {
                         <button
                           type="button"
                           onClick={() => startEdit(v)}
-                          title="Edit Vehicle"
+                          title="Edit Vehicle & Renewal Dates"
                           className="funky-btn p-2 rounded-full bg-[var(--accent-secondary)] cursor-pointer"
                         >
                           <Pencil className="w-3.5 h-3.5" />
@@ -270,6 +348,19 @@ export default function GaragePage() {
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
+                    </div>
+
+                    {/* Compact Renewal Dates Summary */}
+                    <div className="flex flex-wrap gap-1.5 text-[10px] font-bold">
+                      <span className="px-2 py-0.5 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)]">
+                        Ins: {v.insurance_expiry || "Not set"}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)]">
+                        PUC: {v.puc_expiry || "Not set"}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)]">
+                        RC: {v.rc_expiry || "Not set"}
+                      </span>
                     </div>
 
                     <div className="flex items-center justify-between pt-2 border-t border-[var(--border-subtle)] text-xs">
@@ -297,7 +388,7 @@ export default function GaragePage() {
         </div>
       )}
 
-      {/* Locked Full-Width Add New Vehicle Form (All Fields Mandatory + Indian State/BH Validation) */}
+      {/* Add New Vehicle Form */}
       <form
         onSubmit={handleAddVehicle}
         className="funky-card w-full p-6 space-y-4"
@@ -307,7 +398,7 @@ export default function GaragePage() {
             <Plus className="w-4 h-4" /> Add New Vehicle
           </h2>
           <span className="text-[11px] font-bold text-[var(--text-muted)]">
-            All fields required
+            * Required fields
           </span>
         </div>
 
@@ -456,6 +547,43 @@ export default function GaragePage() {
               placeholder="e.g., 10000"
               className={inputClass}
             />
+          </div>
+        </div>
+
+        {/* Optional Compliance & Renewal Dates */}
+        <div className="pt-2 border-t border-[var(--border-subtle)] space-y-3">
+          <div className="text-xs font-extrabold flex items-center gap-1.5 text-[#025cbc] dark:text-[#3898ec]">
+            <ShieldCheck className="w-4 h-4" />
+            <span>Compliance &amp; Renewal Dates (Optional)</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs font-bold">Insurance Expiry</label>
+              <input
+                type="date"
+                value={insuranceExpiry}
+                onChange={(e) => setInsuranceExpiry(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold">PUC Expiry</label>
+              <input
+                type="date"
+                value={pucExpiry}
+                onChange={(e) => setPucExpiry(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold">RC / Fitness Expiry</label>
+              <input
+                type="date"
+                value={rcExpiry}
+                onChange={(e) => setRcExpiry(e.target.value)}
+                className={inputClass}
+              />
+            </div>
           </div>
         </div>
 

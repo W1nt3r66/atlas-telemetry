@@ -16,6 +16,8 @@ import {
   Fuel,
   Trash2,
   X,
+  ShieldCheck,
+  Gauge,
 } from "lucide-react";
 
 function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
@@ -46,6 +48,51 @@ function getLocalDateString(daysOffset = 0): string {
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
+}
+
+function getRenewalCountdown(dateStr?: string) {
+  if (!dateStr) return null;
+  const target = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(target.getTime())) return null;
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffDays = Math.ceil(
+    (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+  );
+
+  const formattedDate = target.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+
+  if (diffDays < 0) {
+    return {
+      statusLabel: `Expired ${Math.abs(diffDays)}d ago`,
+      formattedDate,
+      tone: "danger" as const,
+    };
+  }
+  if (diffDays === 0) {
+    return {
+      statusLabel: "Expires Today",
+      formattedDate,
+      tone: "danger" as const,
+    };
+  }
+  if (diffDays <= 30) {
+    return {
+      statusLabel: `${diffDays}d left`,
+      formattedDate,
+      tone: "warning" as const,
+    };
+  }
+  return {
+    statusLabel: `${diffDays}d left`,
+    formattedDate,
+    tone: "ok" as const,
+  };
 }
 
 export default function DashboardPage() {
@@ -175,6 +222,44 @@ export default function DashboardPage() {
     0,
   );
 
+  // Cost-Per-Kilometer & Ownership Economics
+  const totalFuelSpend = fuelLogs.reduce(
+    (sum, l) => sum + Number(l.amount || 0),
+    0,
+  );
+  const totalAllSpend = vLogs.reduce(
+    (sum, l) => sum + Number(l.amount || 0),
+    0,
+  );
+  const nonFuelSpend = Math.max(0, totalAllSpend - totalFuelSpend);
+
+  const baselineOdo = activeVehicle?.initial_odo || 0;
+  const trackedDistance =
+    latestOdo > baselineOdo ? latestOdo - baselineOdo : latestOdo;
+
+  const fuelCostPerKm =
+    trackedDistance > 0 ? totalFuelSpend / trackedDistance : 0;
+  const allInCostPerKm =
+    trackedDistance > 0 ? totalAllSpend / trackedDistance : 0;
+  const fuelShareOfCostPct =
+    totalAllSpend > 0 ? Math.round((totalFuelSpend / totalAllSpend) * 100) : 0;
+
+  // Compliance & Renewal Dates
+  const renewalItems = [
+    {
+      label: "Insurance",
+      info: getRenewalCountdown(activeVehicle?.insurance_expiry),
+    },
+    {
+      label: "PUC",
+      info: getRenewalCountdown(activeVehicle?.puc_expiry),
+    },
+    {
+      label: "RC / Fitness",
+      info: getRenewalCountdown(activeVehicle?.rc_expiry),
+    },
+  ];
+
   const maint = activeVehicle
     ? calculateMaintenanceStatus(activeVehicle, latestOdo)
     : null;
@@ -203,7 +288,7 @@ export default function DashboardPage() {
     ? Math.min(100, Math.max(0, (kmSinceService / serviceIntervalKm) * 100))
     : 0;
 
-  // Option 1: Analog Sport Instrument Cluster Geometry (220° Sweep: -110° to +110°, 0 to 30 km/l)
+  // Analog Sport Instrument Cluster Geometry (220° Sweep: -110° to +110°, 0 to 30 km/l)
   const dialCx = 110;
   const dialCy = 92;
   const startAngle = -110;
@@ -249,7 +334,6 @@ export default function DashboardPage() {
     currentNeedleAngle,
   );
 
-  // SVG Ring Geometry for Wash & Service (r=18 -> 2*pi*18 ≈ 113.1)
   const ringCircumference = 113.1;
   const washRingOffset = ringCircumference * (1 - washProgressPct / 100);
   const serviceRingOffset = ringCircumference * (1 - serviceProgressPct / 100);
@@ -410,7 +494,7 @@ export default function DashboardPage() {
         {/* Single Cockpit Telemetry Cluster & Care Rings Tile */}
         <div className="funky-card p-5 sm:p-6 relative overflow-hidden">
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">
-            {/* Left: Option 1 Analog Sport Instrument Cluster */}
+            {/* Left: Analog Sport Instrument Cluster */}
             <Link
               href={user ? "/logs?filter=fuel" : "/"}
               className="sm:col-span-6 flex flex-col items-center justify-center p-3.5 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-color)] hover:brightness-105 transition-all"
@@ -446,7 +530,6 @@ export default function DashboardPage() {
                     </filter>
                   </defs>
 
-                  {/* 31 Graduated Radial Tick Marks (0 to 30 km/l) */}
                   {Array.from({ length: 31 }).map((_, idx) => {
                     const angle = startAngle + (idx / 30) * totalSweep;
                     const isMajor = idx % 5 === 0;
@@ -479,7 +562,6 @@ export default function DashboardPage() {
                     );
                   })}
 
-                  {/* Major Scale Numbers: 0, 5, 10, 15, 20, 25, 30 */}
                   {[0, 5, 10, 15, 20, 25, 30].map((val) => {
                     const angle = startAngle + (val / 30) * totalSweep;
                     const pos = polarToCartesian(dialCx, dialCy, labelR, angle);
@@ -500,7 +582,6 @@ export default function DashboardPage() {
                     );
                   })}
 
-                  {/* Inner Track Arc */}
                   <path
                     d={trackArcPath}
                     fill="none"
@@ -510,7 +591,6 @@ export default function DashboardPage() {
                     strokeLinecap="round"
                   />
 
-                  {/* Illuminated Sweep Arc */}
                   {activeArcPath && (
                     <path
                       d={activeArcPath}
@@ -521,7 +601,6 @@ export default function DashboardPage() {
                     />
                   )}
 
-                  {/* Glowing Analog Pointer Needle */}
                   <line
                     x1={needleBase.x}
                     y1={needleBase.y}
@@ -534,7 +613,6 @@ export default function DashboardPage() {
                   />
                 </svg>
 
-                {/* Center Digital Cluster Readout */}
                 <div className="absolute bottom-2.5 text-center pointer-events-none">
                   <div className="text-3xl font-black tabular-nums leading-none tracking-tight">
                     {avgMileage}
@@ -556,7 +634,6 @@ export default function DashboardPage() {
 
             {/* Right: Monthly Spend + Radial Wash & Service Rings */}
             <div className="sm:col-span-6 flex flex-col justify-between gap-4">
-              {/* Top: Monthly Spend Strip */}
               <Link
                 href={user ? "/logs?filter=all" : "/"}
                 className="flex items-center justify-between px-4 py-3 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-color)] hover:brightness-105 transition-all"
@@ -574,7 +651,6 @@ export default function DashboardPage() {
                 </div>
               </Link>
 
-              {/* Bottom: Dual Circular Care Rings */}
               <div className="grid grid-cols-2 gap-3">
                 {/* Wash Ring */}
                 <div
@@ -700,6 +776,134 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Running Economics (₹/km) + Compliance & Renewal Dates */}
+        {activeVehicle && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Cost-Per-Kilometer & True Ownership Economics */}
+            <Link
+              href={user ? "/logs" : "/"}
+              className="funky-card p-5 flex flex-col justify-between gap-3.5 hover:brightness-105 transition-all"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-black text-sm flex items-center gap-1.5">
+                  <Gauge className="w-4 h-4 text-[#025cbc] dark:text-[#3898ec]" />
+                  Running Economics
+                </span>
+                <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)] tabular-nums">
+                  {trackedDistance.toLocaleString()} km tracked
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-color)]">
+                  <div className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
+                    Fuel Cost / km
+                  </div>
+                  <div className="text-xl sm:text-2xl font-black tabular-nums mt-0.5">
+                    ₹{fuelCostPerKm > 0 ? fuelCostPerKm.toFixed(2) : "0.00"}
+                    <span className="text-xs font-bold text-[var(--text-muted)]">
+                      /km
+                    </span>
+                  </div>
+                  <div className="text-[10px] font-semibold text-[var(--text-muted)] mt-0.5 tabular-nums">
+                    ₹{Math.round(totalFuelSpend).toLocaleString()} fuel
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-color)]">
+                  <div className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
+                    All-In Ownership
+                  </div>
+                  <div className="text-xl sm:text-2xl font-black tabular-nums mt-0.5">
+                    ₹{allInCostPerKm > 0 ? allInCostPerKm.toFixed(2) : "0.00"}
+                    <span className="text-xs font-bold text-[var(--text-muted)]">
+                      /km
+                    </span>
+                  </div>
+                  <div className="text-[10px] font-semibold text-[var(--text-muted)] mt-0.5 tabular-nums">
+                    +₹{Math.round(nonFuelSpend).toLocaleString()} care &amp;
+                    parts
+                  </div>
+                </div>
+              </div>
+
+              {/* Fuel vs Care Cost Ratio Bar */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px] font-extrabold text-[var(--text-muted)]">
+                  <span>Fuel ({fuelShareOfCostPct}%)</span>
+                  <span>
+                    Parts, Service &amp; Wash (
+                    {totalAllSpend > 0 ? 100 - fuelShareOfCostPct : 0}%)
+                  </span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden border border-[var(--border-color)] flex">
+                  <div
+                    className="h-full bg-[#3898ec] transition-all duration-500"
+                    style={{ width: `${fuelShareOfCostPct}%` }}
+                  />
+                  <div
+                    className="h-full bg-[#025cbc] transition-all duration-500"
+                    style={{
+                      width: `${totalAllSpend > 0 ? 100 - fuelShareOfCostPct : 0}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </Link>
+
+            {/* Compliance & Renewal Dates Vault (Dates + Reminders Only) */}
+            <div className="funky-card p-5 flex flex-col justify-between gap-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-black text-sm flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-[#025cbc] dark:text-[#3898ec]" />
+                  Renewal Dates
+                </span>
+                <Link
+                  href="/garage"
+                  className="text-[11px] font-extrabold text-[#025cbc] dark:text-[#3898ec] hover:opacity-80"
+                >
+                  Edit Dates →
+                </Link>
+              </div>
+
+              <div className="space-y-2">
+                {renewalItems.map(({ label, info }) => {
+                  const badgeClass = !info
+                    ? "bg-[var(--accent-secondary)] text-[var(--text-muted)] border-[var(--border-color)]"
+                    : info.tone === "danger"
+                      ? "bg-red-500/15 text-red-500 border-red-400/40"
+                      : info.tone === "warning"
+                        ? "bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-400/40"
+                        : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-400/40";
+
+                  return (
+                    <Link
+                      key={label}
+                      href="/garage"
+                      className="px-3.5 py-2.5 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-color)] flex items-center justify-between gap-2 hover:brightness-105 transition-all"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-xs font-extrabold">{label}</div>
+                        <div className="text-[10px] font-semibold text-[var(--text-muted)]">
+                          {info
+                            ? `Valid till ${info.formattedDate}`
+                            : "Tap to set expiry date"}
+                        </div>
+                      </div>
+
+                      <span
+                        className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] font-black border tabular-nums ${badgeClass}`}
+                      >
+                        {info ? info.statusLabel : "Not set"}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Collapsible Recent Logs Dropdown Card */}
         <div className="funky-card p-4 sm:p-5">
           <div className="flex items-center justify-between gap-2">
@@ -752,7 +956,6 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          {/* Expanded Dropdown List */}
           {logsExpanded && (
             <div className="mt-3 pt-2 border-t border-[var(--border-subtle)]">
               {vLogs.length === 0 ? (
@@ -834,7 +1037,6 @@ export default function DashboardPage() {
             </div>
 
             <form onSubmit={handleConfirmQuickLog} className="space-y-3.5">
-              {/* Quick Preset Pills: Today / Yesterday */}
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
