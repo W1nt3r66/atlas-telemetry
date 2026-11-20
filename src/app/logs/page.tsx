@@ -15,9 +15,59 @@ import {
 
 type FilterTab = "all" | "fuel" | "expense" | "service" | "wash";
 
+const CATEGORY_THEME: Record<
+  LogEntry["type"],
+  {
+    label: string;
+    shortLabel: string;
+    stroke: string;
+    badgeBg: string;
+    badgeText: string;
+    badgeBorder: string;
+    cardTint: string;
+  }
+> = {
+  fuel: {
+    label: "Fuel",
+    shortLabel: "Fuel",
+    stroke: "#0e84eb",
+    badgeBg: "rgba(14, 132, 235, 0.16)",
+    badgeText: "#025cbc",
+    badgeBorder: "rgba(14, 132, 235, 0.42)",
+    cardTint: "rgba(14, 132, 235, 0.05)",
+  },
+  expense: {
+    label: "Parts & Accessories",
+    shortLabel: "Parts",
+    stroke: "#6366f1",
+    badgeBg: "rgba(99, 102, 241, 0.16)",
+    badgeText: "#4338ca",
+    badgeBorder: "rgba(99, 102, 241, 0.42)",
+    cardTint: "rgba(99, 102, 241, 0.05)",
+  },
+  service: {
+    label: "Service",
+    shortLabel: "Service",
+    stroke: "#10b981",
+    badgeBg: "rgba(16, 185, 129, 0.16)",
+    badgeText: "#047857",
+    badgeBorder: "rgba(16, 185, 129, 0.42)",
+    cardTint: "rgba(16, 185, 129, 0.05)",
+  },
+  wash: {
+    label: "Wash & Care",
+    shortLabel: "Wash",
+    stroke: "#f59e0b",
+    badgeBg: "rgba(245, 158, 11, 0.18)",
+    badgeText: "#b45309",
+    badgeBorder: "rgba(245, 158, 11, 0.45)",
+    cardTint: "rgba(245, 158, 11, 0.05)",
+  },
+};
+
 function LogsContent() {
   const searchParams = useSearchParams();
-  const { activeVehicle, logs, updateLog, deleteLog, owner } = useApp();
+  const { theme, activeVehicle, logs, updateLog, deleteLog, owner } = useApp();
   const [filterType, setFilterType] = useState<FilterTab>("all");
   const [activeSliceIdx, setActiveSliceIdx] = useState<number | null>(null);
 
@@ -30,6 +80,16 @@ function LogsContent() {
   const [editMileage, setEditMileage] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+
+  const isDark = theme === "dark";
+
+  const getReadableTextColor = (type: LogEntry["type"]) => {
+    if (!isDark) return CATEGORY_THEME[type].badgeText;
+    if (type === "fuel") return "#60a5fa";
+    if (type === "expense") return "#a5b4fc";
+    if (type === "service") return "#6ee7b7";
+    return "#fcd34d";
+  };
 
   useEffect(() => {
     const param = searchParams.get("filter") as FilterTab | null;
@@ -91,7 +151,7 @@ function LogsContent() {
     await deleteLog(id);
   };
 
-  // Show last 8 fuel entries chronologically (plots fuel bars even if mileage is not yet computed)
+  // Show last 8 fuel entries chronologically
   const comboPoints = [...vehicleLogs]
     .filter(
       (l) =>
@@ -191,36 +251,19 @@ function LogsContent() {
     .filter((l) => l.type === "wash")
     .reduce((sum, l) => sum + Number(l.amount || 0), 0);
 
-  const rawBuckets = [
-    {
-      label: "Fuel",
-      shortLabel: "Fuel",
-      amount: fuelSpend,
-      color: "#3898ec",
-      filterTab: "fuel" as FilterTab,
-    },
-    {
-      label: "Parts & Accessories",
-      shortLabel: "Parts",
-      amount: partsSpend,
-      color: "#025cbc",
-      filterTab: "expense" as FilterTab,
-    },
-    {
-      label: "Service",
-      shortLabel: "Service",
-      amount: serviceSpend,
-      color: "#34d399",
-      filterTab: "service" as FilterTab,
-    },
-    {
-      label: "Wash & Care",
-      shortLabel: "Wash",
-      amount: washSpend,
-      color: "#fbbf24",
-      filterTab: "wash" as FilterTab,
-    },
-  ].filter((b) => b.amount > 0);
+  const rawBuckets = (
+    [
+      { type: "fuel" as const, amount: fuelSpend },
+      { type: "expense" as const, amount: partsSpend },
+      { type: "service" as const, amount: serviceSpend },
+      { type: "wash" as const, amount: washSpend },
+    ] as const
+  )
+    .filter((b) => b.amount > 0)
+    .map((b) => ({
+      ...b,
+      ...CATEGORY_THEME[b.type],
+    }));
 
   const donutRadius = 42;
   const donutCircumference = 2 * Math.PI * donutRadius;
@@ -430,8 +473,8 @@ function LogsContent() {
                       width="24"
                       height={c.barH}
                       rx="5"
-                      fill="currentColor"
-                      fillOpacity="0.2"
+                      fill="#0e84eb"
+                      fillOpacity="0.26"
                     />
                     <text
                       x={c.x}
@@ -440,7 +483,7 @@ function LogsContent() {
                       fontSize="7.5"
                       fontWeight="800"
                       fill="currentColor"
-                      fillOpacity="0.7"
+                      fillOpacity="0.75"
                     >
                       {c.liters}L
                     </text>
@@ -480,7 +523,7 @@ function LogsContent() {
                       cy={c.yLine}
                       r="4"
                       fill="var(--bg-popover)"
-                      stroke="currentColor"
+                      stroke="#0e84eb"
                       strokeWidth="2.5"
                     />
                     <rect
@@ -510,8 +553,8 @@ function LogsContent() {
             )}
           </div>
 
-          {/* Interactive Donut Pie Chart Expense Split */}
-          <div className="funky-card p-5 flex flex-col justify-between gap-3">
+          {/* Interactive Donut Pie Chart Expense Split (Full Unclipped Labels & High-Contrast Pills) */}
+          <div className="funky-card p-5 flex flex-col justify-between gap-3.5">
             <div className="flex items-center justify-between">
               <span className="font-black text-sm flex items-center gap-1.5">
                 <PieChart className="w-4 h-4" /> Expense Split
@@ -526,15 +569,14 @@ function LogsContent() {
                 No expenses recorded yet.
               </div>
             ) : (
-              <div className="grid grid-cols-12 gap-3 items-center my-auto">
-                {/* Left: Interactive SVG Donut Ring */}
-                <div className="col-span-5 flex items-center justify-center">
+              <div className="space-y-3.5">
+                {/* Top: Centered Interactive Donut Ring */}
+                <div className="flex items-center justify-center">
                   <div className="relative w-32 h-32 flex items-center justify-center">
                     <svg
                       viewBox="0 0 112 112"
                       className="w-full h-full -rotate-90 overflow-visible"
                     >
-                      {/* Subtle Base Track */}
                       <circle
                         cx="56"
                         cy="56"
@@ -554,7 +596,7 @@ function LogsContent() {
                             cy="56"
                             r={donutRadius}
                             fill="none"
-                            stroke={slice.color}
+                            stroke={slice.stroke}
                             strokeWidth={isSelected ? "18" : "15"}
                             strokeDasharray={slice.strokeDasharray}
                             strokeDashoffset={slice.strokeDashoffset}
@@ -571,16 +613,16 @@ function LogsContent() {
                               opacity:
                                 activeSliceIdx === null || isSelected
                                   ? 1
-                                  : 0.45,
+                                  : 0.42,
                             }}
                           />
                         );
                       })}
                     </svg>
 
-                    {/* Center Donut Readout */}
+                    {/* Center Readout */}
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-2">
-                      <span className="text-[9px] font-extrabold uppercase tracking-wider text-[var(--text-muted)] truncate max-w-[74px]">
+                      <span className="text-[9px] font-extrabold uppercase tracking-wider text-[var(--text-muted)] max-w-[74px] leading-tight">
                         {focusedSlice ? focusedSlice.shortLabel : "Total"}
                       </span>
                       <span className="text-xs font-black tabular-nums leading-tight mt-0.5">
@@ -591,8 +633,10 @@ function LogsContent() {
                       </span>
                       {focusedSlice && (
                         <span
-                          className="text-[9px] font-black mt-0.5"
-                          style={{ color: focusedSlice.color }}
+                          className="text-[10px] font-black mt-0.5"
+                          style={{
+                            color: getReadableTextColor(focusedSlice.type),
+                          }}
                         >
                           {focusedSlice.roundedPct}%
                         </span>
@@ -601,46 +645,57 @@ function LogsContent() {
                   </div>
                 </div>
 
-                {/* Right: Color-Coded Legend with Exact Values & Percentages */}
-                <div className="col-span-7 space-y-2">
+                {/* Bottom: Full-Width Unclipped Category Rows */}
+                <div className="space-y-1.5">
                   {donutSlices.map((slice, idx) => {
                     const isSelected = activeSliceIdx === idx;
+                    const textColor = getReadableTextColor(slice.type);
                     return (
                       <button
                         key={slice.label}
                         type="button"
-                        onClick={() =>
+                        onClick={() => {
                           setActiveSliceIdx((prev) =>
                             prev === idx ? null : idx,
-                          )
-                        }
+                          );
+                          setFilterType((prev) =>
+                            prev === slice.type ? "all" : slice.type,
+                          );
+                        }}
                         onMouseEnter={() => setActiveSliceIdx(idx)}
                         onMouseLeave={() => setActiveSliceIdx(null)}
-                        className={`w-full px-2.5 py-1.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
-                          isSelected
-                            ? "bg-white/20 dark:bg-white/12 border-[var(--border-color)] scale-[1.01]"
-                            : "bg-[var(--accent-secondary)]/65 border-transparent hover:border-[var(--border-color)]"
+                        className={`w-full px-3 py-2 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                          isSelected || filterType === slice.type
+                            ? "bg-white/25 dark:bg-white/12 scale-[1.01]"
+                            : "bg-[var(--accent-secondary)]/70 hover:brightness-105"
                         }`}
+                        style={{
+                          borderColor:
+                            isSelected || filterType === slice.type
+                              ? slice.stroke
+                              : "var(--border-subtle)",
+                        }}
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <span
                             className="w-2.5 h-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: slice.color }}
+                            style={{ backgroundColor: slice.stroke }}
                           />
-                          <span className="text-[11px] font-extrabold truncate">
+                          <span className="text-xs font-extrabold">
                             {slice.label}
                           </span>
                         </div>
 
-                        <div className="text-right shrink-0 flex items-center gap-1.5">
-                          <span className="text-[11px] font-black tabular-nums">
+                        <div className="shrink-0 flex items-center gap-2">
+                          <span className="text-xs font-black tabular-nums">
                             ₹{slice.amount.toLocaleString()}
                           </span>
                           <span
-                            className="text-[10px] font-black px-1.5 py-0.5 rounded-full tabular-nums"
+                            className="text-[11px] font-black px-2 py-0.5 rounded-full tabular-nums border"
                             style={{
-                              backgroundColor: `${slice.color}24`,
-                              color: slice.color,
+                              backgroundColor: slice.badgeBg,
+                              color: textColor,
+                              borderColor: slice.badgeBorder,
                             }}
                           >
                             {slice.roundedPct}%
@@ -655,34 +710,61 @@ function LogsContent() {
           </div>
         </div>
 
-        {/* Category Filter Pills */}
+        {/* Color-Coded Category Filter Pills */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
           <Filter className="w-4 h-4 shrink-0 text-[var(--text-muted)]" />
           {(
             [
-              { id: "all", label: "All" },
-              { id: "fuel", label: "Fuel" },
-              { id: "expense", label: "Parts & Expenses" },
-              { id: "service", label: "Service" },
-              { id: "wash", label: "Wash" },
+              { id: "all", label: "All", dotColor: null },
+              {
+                id: "fuel",
+                label: "Fuel",
+                dotColor: CATEGORY_THEME.fuel.stroke,
+              },
+              {
+                id: "expense",
+                label: "Parts & Expenses",
+                dotColor: CATEGORY_THEME.expense.stroke,
+              },
+              {
+                id: "service",
+                label: "Service",
+                dotColor: CATEGORY_THEME.service.stroke,
+              },
+              {
+                id: "wash",
+                label: "Wash",
+                dotColor: CATEGORY_THEME.wash.stroke,
+              },
             ] as const
-          ).map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setFilterType(tab.id)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-extrabold shrink-0 cursor-pointer ${
-                filterType === tab.id
-                  ? "funky-btn-primary"
-                  : "funky-btn bg-[var(--accent-secondary)]"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          ).map((tab) => {
+            const active = filterType === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setFilterType(tab.id)}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-extrabold shrink-0 cursor-pointer inline-flex items-center gap-1.5 ${
+                  active
+                    ? "funky-btn-primary"
+                    : "funky-btn bg-[var(--accent-secondary)]"
+                }`}
+              >
+                {tab.dotColor && (
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{
+                      backgroundColor: active ? "#ffffff" : tab.dotColor,
+                    }}
+                  />
+                )}
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Log Cards List */}
+        {/* Color-Coded Log Cards List */}
         {filteredLogs.length === 0 ? (
           <div className="funky-card p-8 text-center text-xs text-[var(--text-muted)]">
             No logs found for this filter.
@@ -690,6 +772,9 @@ function LogsContent() {
         ) : (
           <div className="space-y-3">
             {filteredLogs.map((entry) => {
+              const catStyle =
+                CATEGORY_THEME[entry.type] || CATEGORY_THEME.expense;
+              const badgeTextColor = getReadableTextColor(entry.type);
               const ratePerLiter =
                 entry.type === "fuel" &&
                 entry.fuel_liters &&
@@ -700,16 +785,22 @@ function LogsContent() {
               return (
                 <div
                   key={entry.id}
+                  style={{
+                    borderLeftWidth: "4px",
+                    borderLeftColor: catStyle.stroke,
+                    backgroundImage: `linear-gradient(90deg, ${catStyle.cardTint} 0%, transparent 45%)`,
+                  }}
                   className="funky-card p-4 sm:p-5 flex items-start justify-between gap-3"
                 >
                   <div className="flex-1 min-w-0 space-y-1.5">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <span
-                        className={`shrink-0 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wide ${
-                          entry.type === "fuel"
-                            ? "funky-btn-primary"
-                            : "bg-[var(--accent-secondary)] border border-[var(--border-color)]"
-                        }`}
+                        style={{
+                          backgroundColor: catStyle.badgeBg,
+                          color: badgeTextColor,
+                          borderColor: catStyle.badgeBorder,
+                        }}
+                        className="shrink-0 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wide border"
                       >
                         {entry.category}
                       </span>
@@ -744,7 +835,14 @@ function LogsContent() {
                       </div>
 
                       {entry.type === "fuel" && entry.calculated_mileage ? (
-                        <div className="funky-btn-primary inline-block px-2.5 py-0.5 rounded-full text-[11px] font-black tabular-nums">
+                        <div
+                          style={{
+                            backgroundColor: catStyle.badgeBg,
+                            color: badgeTextColor,
+                            borderColor: catStyle.badgeBorder,
+                          }}
+                          className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-black tabular-nums border"
+                        >
                           {entry.calculated_mileage} km/l
                         </div>
                       ) : null}
