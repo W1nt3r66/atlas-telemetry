@@ -35,12 +35,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" data-f1-team="default">
-      <body className="fixed inset-0 overflow-hidden select-none sm:select-auto">
+      <body className="fixed inset-0 overflow-hidden flex flex-col select-none sm:select-auto">
         <AppProvider>
           <LaunchSplash />
           <TelemetryWatermark />
-          <div className="relative z-10 h-full w-full overflow-y-auto overflow-x-hidden overscroll-y-contain flex flex-col [touch-action:pan-y] [-webkit-overflow-scrolling:touch]">
-            <Navbar />
+          <Navbar />
+          <div className="relative z-10 flex-1 w-full overflow-y-auto overflow-x-hidden overscroll-y-contain flex flex-col [touch-action:pan-y] [-webkit-overflow-scrolling:touch]">
             <main className="flex-1 max-w-5xl w-full mx-auto px-4 pt-5 pb-28">
               {children}
             </main>

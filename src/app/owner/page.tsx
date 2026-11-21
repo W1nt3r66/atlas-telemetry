@@ -168,7 +168,7 @@ export default function OwnerPage() {
 
             <div className="p-3.5 rounded-2xl bg-[var(--accent-secondary)]/75 border border-[var(--border-color)] space-y-1">
               <div className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5">
-                <MapPin className="w-3 h-3" /> Home City / Hub
+                <MapPin className="w-3 h-3" /> Base
               </div>
               <div className="text-sm font-black">{owner.city || "—"}</div>
             </div>
