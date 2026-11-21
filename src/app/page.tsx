@@ -419,7 +419,7 @@ export default function DashboardPage() {
     (activeVehicle as { year?: number | string | null } | null)?.year || null;
 
   return (
-    <div className="w-full max-w-full overflow-x-hidden">
+    <div className="w-full max-w-full overflow-hidden">
       <div
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}

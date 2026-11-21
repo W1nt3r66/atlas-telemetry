@@ -18,6 +18,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#e2edf6" },
     { media: "(prefers-color-scheme: dark)", color: "#0b151e" },
@@ -31,14 +35,16 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" data-f1-team="default">
-      <body className="min-h-screen flex flex-col relative">
+      <body className="fixed inset-0 overflow-hidden select-none sm:select-auto">
         <AppProvider>
           <LaunchSplash />
           <TelemetryWatermark />
-          <Navbar />
-          <main className="relative z-10 flex-1 max-w-5xl w-full mx-auto px-4 pt-5 pb-28">
-            {children}
-          </main>
+          <div className="relative z-10 h-full w-full overflow-y-auto overflow-x-hidden overscroll-y-contain flex flex-col [touch-action:pan-y] [-webkit-overflow-scrolling:touch]">
+            <Navbar />
+            <main className="flex-1 max-w-5xl w-full mx-auto px-4 pt-5 pb-28">
+              {children}
+            </main>
+          </div>
         </AppProvider>
       </body>
     </html>

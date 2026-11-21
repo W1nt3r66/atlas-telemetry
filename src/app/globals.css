@@ -240,16 +240,19 @@ html:not([data-f1-team="default"]) .dark\:text-amber-400 {
   color: var(--team-shade-4) !important;
 }
 
-html,
-body {
+html {
+  height: 100%;
   overscroll-behavior: none;
-  overflow-x: clip;
+  overflow: hidden;
+  background-color: var(--bg-main);
+  background-image: var(--bg-gradient);
 }
 
 body {
-  background-color: var(--bg-main);
-  background-image: var(--bg-gradient);
-  background-attachment: fixed;
+  height: 100%;
+  overscroll-behavior: none;
+  overflow: hidden;
+  background: transparent;
   color: var(--text-main);
   font-family:
     -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
