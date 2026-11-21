@@ -25,51 +25,96 @@ import {
 
 function MotorsportTelemetryLogo() {
   return (
-    <svg
-      viewBox="0 0 36 36"
-      fill="none"
-      className="w-6 h-6 text-[var(--text-main)]"
-      xmlns="http://www.w3.org/2000/svg"
+    <span
+      className="relative w-full h-full rounded-[11px] flex items-center justify-center overflow-hidden backdrop-blur-xl saturate-150"
+      style={{
+        background:
+          "radial-gradient(circle at 72% 68%, rgba(162, 198, 228, 0.92) 0%, rgba(124, 166, 204, 0.9) 54%, rgba(98, 142, 184, 0.95) 100%)",
+        boxShadow:
+          "inset 0 1.5px 2px rgba(255, 255, 255, 0.68), inset 0 -1.5px 3px rgba(255, 255, 255, 0.24), 0 4px 12px rgba(54, 96, 138, 0.18)",
+      }}
     >
-      <path
-        d="M8.5 24.5A11 11 0 1 1 27.5 24.5"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
+      {/* Top Curved Glass Highlight */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-2.5 -left-2 w-[135%] h-[68%] rounded-[100%]"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(255, 255, 255, 0.44) 0%, rgba(255, 255, 255, 0.05) 100%)",
+        }}
       />
-      <path
-        d="M11 13.5L12.6 15.1"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
+
+      {/* Soft Bottom Glass Glint */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-1 bottom-0.5 h-[24%] rounded-b-[10px]"
+        style={{
+          background:
+            "linear-gradient(0deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 100%)",
+        }}
       />
-      <path
-        d="M18 10V12.2"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M25 13.5L23.4 15.1"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M18 21.5L24.5 14"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-      />
-      <circle cx="18" cy="21.5" r="2.4" fill="currentColor" />
-      <path
-        d="M12.5 26.5H23.5"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeOpacity="0.55"
-      />
-    </svg>
+
+      {/* ~70% Coverage 2/3-Circle Translucent Liquid-Glass Arc, Needle & ATLAS */}
+      <svg
+        viewBox="0 0 36 36"
+        fill="none"
+        className="relative z-10 w-[70%] h-[70%]"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <defs>
+          <linearGradient
+            id="navbarIconArc"
+            x1="7.43"
+            y1="5.3"
+            x2="28.57"
+            y2="23.6"
+            gradientUnits="userSpaceOnUse"
+          >
+            <stop offset="0%" stopColor="rgba(255, 255, 255, 0.84)" />
+            <stop offset="50%" stopColor="rgba(255, 255, 255, 0.36)" />
+            <stop offset="100%" stopColor="rgba(255, 255, 255, 0.68)" />
+          </linearGradient>
+
+          <linearGradient
+            id="navbarIconNeedle"
+            x1="18"
+            y1="17.5"
+            x2="25.9"
+            y2="10.4"
+            gradientUnits="userSpaceOnUse"
+          >
+            <stop offset="0%" stopColor="rgba(255, 255, 255, 0.46)" />
+            <stop offset="100%" stopColor="rgba(255, 255, 255, 0.9)" />
+          </linearGradient>
+        </defs>
+
+        <path
+          d="M7.43 23.6A12.2 12.2 0 1 1 28.57 23.6"
+          stroke="url(#navbarIconArc)"
+          strokeWidth="3.6"
+          strokeLinecap="round"
+        />
+
+        <path
+          d="M18 17.5L25.9 10.4"
+          stroke="url(#navbarIconNeedle)"
+          strokeWidth="3.6"
+          strokeLinecap="round"
+        />
+
+        <text
+          x="18"
+          y="29.2"
+          textAnchor="middle"
+          fill="rgba(255, 255, 255, 0.8)"
+          fontSize="4.5"
+          fontWeight="800"
+          letterSpacing="0.55"
+        >
+          ATLAS
+        </text>
+      </svg>
+    </span>
   );
 }
 
@@ -179,7 +224,7 @@ export default function Navbar() {
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
           {/* Brand Logo + App Name */}
           <Link href="/" className="flex items-center gap-2.5 shrink-0">
-            <div className="w-10 h-10 rounded-2xl bg-[var(--accent-secondary)] backdrop-blur-md border border-[var(--border-color)] flex items-center justify-center shadow-sm">
+            <div className="w-10 h-10 rounded-[11px] flex items-center justify-center overflow-hidden">
               <MotorsportTelemetryLogo />
             </div>
             <span className="font-black tracking-tight text-xl leading-none">
