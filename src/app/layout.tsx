@@ -9,6 +9,7 @@ export const metadata: Metadata = {
   title: "Atlas — Telemetry, Mileage & Garage",
   description: "Minimal F1-inspired car telemetry, mileage & garage app",
   applicationName: "Atlas",
+  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     title: "Atlas",

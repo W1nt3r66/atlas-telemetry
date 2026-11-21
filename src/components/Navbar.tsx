@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useApp } from "@/context/AppContext";
@@ -17,6 +17,8 @@ import {
   Sun,
   Moon,
   Bell,
+  BellRing,
+  CheckCircle2,
   LogOut,
   X,
   Palette,
@@ -43,6 +45,38 @@ const F1_TEAMS: { id: F1TeamId; label: string; swatch: string }[] = [
 
 const TEAM_STORAGE_KEY = "atlas_f1_team_theme";
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
+async function sendCrossPlatformNotification(
+  title: string,
+  body: string,
+  tag?: string,
+) {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+
+  try {
+    if ("serviceWorker" in navigator) {
+      const reg = await navigator.serviceWorker.ready;
+      if (reg && "showNotification" in reg) {
+        await reg.showNotification(title, {
+          body,
+          icon: "/icon",
+          badge: "/icon",
+          tag: tag || "atlas-care-alert",
+        });
+        return;
+      }
+    }
+  } catch {
+    // Fallback below for desktop browsers
+  }
+
+  try {
+    new Notification(title, { body, icon: "/icon" });
+  } catch {
+    // Mobile browsers require ServiceWorkerRegistration.showNotification
+  }
+}
 
 function MotorsportTelemetryLogo() {
   return (
@@ -147,12 +181,42 @@ export default function Navbar() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isThemeOpen, setIsThemeOpen] = useState(false);
+  const [notifPermission, setNotifPermission] = useState<
+    NotificationPermission | "unsupported"
+  >("default");
+  const [isIosBrowserTab, setIsIosBrowserTab] = useState(false);
   const [dailyBannerAlert, setDailyBannerAlert] = useState<{
     title: string;
     body: string;
   } | null>(null);
 
   const themeMenuRef = useRef<HTMLDivElement>(null);
+
+  // Register Service Worker for Android Chrome & iOS Home Screen PWA
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const ua = window.navigator.userAgent || "";
+    const isIos =
+      /iPad|iPhone|iPod/.test(ua) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (window.navigator as Navigator & { standalone?: boolean }).standalone ===
+        true;
+
+    setIsIosBrowserTab(isIos && !isStandalone);
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+
+    if ("Notification" in window) {
+      setNotifPermission(Notification.permission);
+    } else {
+      setNotifPermission("unsupported");
+    }
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem(TEAM_STORAGE_KEY) as F1TeamId | null;
@@ -212,32 +276,39 @@ export default function Navbar() {
     maint?.isWashDue ||
     maint?.isServiceDue ||
     isWashWithin7Days ||
-    serviceMilestone !== null,
+    serviceMilestone !== null ||
+    notifPermission === "default",
   );
+
+  // User-gesture triggered permission request (required by iOS & Android)
+  const handleEnablePhoneAlerts = useCallback(async () => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+
+    try {
+      const result = await Notification.requestPermission();
+      setNotifPermission(result);
+
+      if (result === "granted") {
+        const vehicleLabel = activeVehicle?.name || "Atlas";
+        const body = maint
+          ? `Wash in ${maint.washDaysLeft}d • Service in ${maint.serviceKmLeft.toLocaleString()} km`
+          : "Phone care alerts are now active on this device.";
+
+        await sendCrossPlatformNotification(
+          `${vehicleLabel}: Alerts Enabled`,
+          body,
+          "atlas-test-alert",
+        );
+      }
+    } catch {
+      // Ignore permission errors
+    }
+  }, [activeVehicle, maint]);
 
   useEffect(() => {
     if (!user || !activeVehicle || !maint) return;
 
-    if (typeof window !== "undefined" && "Notification" in window) {
-      if (Notification.permission === "default") {
-        Notification.requestPermission().catch(() => {});
-      }
-    }
-
-    const triggerSystemNotif = (title: string, body: string) => {
-      if (
-        typeof window !== "undefined" &&
-        "Notification" in window &&
-        Notification.permission === "granted"
-      ) {
-        try {
-          new Notification(title, { body });
-        } catch {
-          // Handled by banner fallback
-        }
-      }
-    };
-
+    // 1) Wash due within 7 days alert (once per 24h)
     if (isWashWithin7Days) {
       const washKey = `atlas_wash7_notif_${user.id}_${activeVehicle.id}`;
       const lastWash = Number(localStorage.getItem(washKey) || 0);
@@ -246,10 +317,15 @@ export default function Navbar() {
         const title = `${activeVehicle.name}: Wash Due Soon (${maint.washDaysLeft}d left)`;
         const body = `Scheduled wash window (${maint.seasonLabel}) is within 7 days.`;
         setDailyBannerAlert({ title, body });
-        triggerSystemNotif(title, body);
+        void sendCrossPlatformNotification(
+          title,
+          body,
+          `atlas-wash-${activeVehicle.id}`,
+        );
       }
     }
 
+    // 2) Service 500 / 200 / 100 km threshold alerts (once per milestone per vehicle)
     if (serviceMilestone !== null) {
       const mileKey = `atlas_svc_mile_${user.id}_${activeVehicle.id}_${serviceMilestone}`;
       if (!localStorage.getItem(mileKey)) {
@@ -257,10 +333,15 @@ export default function Navbar() {
         const title = `${activeVehicle.name}: Service in ≤${serviceMilestone} km`;
         const body = `${maint.serviceKmLeft.toLocaleString()} km remaining until next service.`;
         setDailyBannerAlert({ title, body });
-        triggerSystemNotif(title, body);
+        void sendCrossPlatformNotification(
+          title,
+          body,
+          `atlas-svc-${activeVehicle.id}-${serviceMilestone}`,
+        );
       }
     }
 
+    // 3) Daily check banner (once per 24h)
     const storageKey = `atlas_last_daily_notif_${user.id}`;
     const lastShown = Number(localStorage.getItem(storageKey) || 0);
     const now = Date.now();
@@ -279,7 +360,11 @@ export default function Navbar() {
         : `Wash due in ${maint.washDaysLeft}d • Next service in ${maint.serviceKmLeft.toLocaleString()} km.`;
 
       setDailyBannerAlert((prev) => prev || { title, body });
-      triggerSystemNotif(title, body);
+      void sendCrossPlatformNotification(
+        title,
+        body,
+        `atlas-daily-${activeVehicle.id}`,
+      );
     }
   }, [user, activeVehicle, maint, isWashWithin7Days, serviceMilestone]);
 
@@ -500,6 +585,50 @@ export default function Navbar() {
                         <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
+
+                    {/* Phone Notification Permission / Test Controls (iOS & Android) */}
+                    {isIosBrowserTab ? (
+                      <div className="p-3 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-muted)] leading-relaxed">
+                        On iPhone: tap{" "}
+                        <strong>Share → Add to Home Screen</strong>, then open
+                        Atlas from your Home Screen to enable phone
+                        notifications.
+                      </div>
+                    ) : notifPermission === "granted" ? (
+                      <div className="flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-subtle)]">
+                        <span className="flex items-center gap-1.5 font-bold text-[11px] text-[var(--text-main)]">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                          Phone Alerts Active
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void sendCrossPlatformNotification(
+                              `${activeVehicle?.name || "Atlas"}: Care Summary`,
+                              `Wash in ${maint.washDaysLeft}d • Service in ${maint.serviceKmLeft.toLocaleString()} km`,
+                              "atlas-manual-test",
+                            )
+                          }
+                          className="funky-btn px-2.5 py-1 rounded-full text-[11px] font-extrabold cursor-pointer"
+                        >
+                          Test Alert
+                        </button>
+                      </div>
+                    ) : notifPermission === "denied" ? (
+                      <div className="p-3 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-subtle)] text-[11px] text-[var(--text-muted)] leading-relaxed">
+                        Notifications are blocked in your browser/phone settings
+                        for Atlas.
+                      </div>
+                    ) : notifPermission === "default" ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleEnablePhoneAlerts()}
+                        className="funky-btn-primary w-full py-2.5 px-3 rounded-2xl font-extrabold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <BellRing className="w-3.5 h-3.5" />
+                        <span>Enable Phone Alerts (iOS & Android)</span>
+                      </button>
+                    ) : null}
 
                     <div className="p-3 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-subtle)] space-y-1">
                       <div className="font-extrabold text-[var(--text-main)]">

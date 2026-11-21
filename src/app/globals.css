@@ -242,7 +242,8 @@ html:not([data-f1-team="default"]) .dark\:text-amber-400 {
 
 html,
 body {
-  overscroll-behavior-y: none;
+  overscroll-behavior: none;
+  overflow-x: clip;
 }
 
 body {

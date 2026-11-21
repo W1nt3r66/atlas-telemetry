@@ -77,12 +77,12 @@ const TEAM_CONFIG: Record<
   },
 };
 
+const LOCKED_BG_CLASS =
+  "fixed -inset-y-12 inset-x-0 pointer-events-none z-0 overflow-hidden select-none flex items-center justify-center [transform:translate3d(0,0,0)] [backface-visibility:hidden]";
+
 function DefaultJapaneseWatermark() {
   return (
-    <div
-      aria-hidden="true"
-      className="fixed inset-0 pointer-events-none z-0 overflow-hidden select-none flex items-center justify-center"
-    >
+    <div aria-hidden="true" className={LOCKED_BG_CLASS}>
       {/* Ambient Light Orbs Behind the Frosted Liquid Glass */}
       <div className="absolute -top-20 -left-20 w-80 h-80 rounded-full bg-[#2A6F97] opacity-[0.20] dark:opacity-[0.26] blur-3xl" />
       <div className="absolute top-1/3 -right-24 w-80 h-80 rounded-full bg-[#1B4965] opacity-[0.16] dark:opacity-[0.22] blur-3xl" />
@@ -172,10 +172,7 @@ function F1TeamTopDownWatermark({ team }: { team: F1TeamId }) {
   const showCustomRaster = Boolean(cfg.imageSrc) && !imageFailed;
 
   return (
-    <div
-      aria-hidden="true"
-      className="fixed inset-0 pointer-events-none z-0 overflow-hidden select-none flex items-center justify-center"
-    >
+    <div aria-hidden="true" className={LOCKED_BG_CLASS}>
       {/* Team-Colored Ambient Orbs */}
       <div
         style={{ backgroundColor: cfg.orb1 }}
@@ -190,14 +187,14 @@ function F1TeamTopDownWatermark({ team }: { team: F1TeamId }) {
         className="absolute bottom-8 left-10 w-72 h-72 rounded-full opacity-[0.18] dark:opacity-[0.22] blur-3xl"
       />
 
-      {/* Full-Screen Vertical F1 Car Image (nose pointing up, rotated -90deg from horizontal source) */}
+      {/* Full-Screen Vertical F1 Car Image */}
       {showCustomRaster ? (
-        <div className="fixed inset-0 z-0 flex items-center justify-center overflow-hidden">
+        <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden">
           <img
             src={cfg.imageSrc}
             alt=""
             onError={() => setImageFailed(true)}
-            className="w-[100vh] h-[100vw] min-w-[100vh] min-h-[100vw] max-w-none object-cover -rotate-90 opacity-[0.34] dark:opacity-[0.38]"
+            className="w-[115vh] h-[115vw] min-w-[115vh] min-h-[115vw] max-w-none object-cover -rotate-90 opacity-[0.34] dark:opacity-[0.38]"
           />
         </div>
       ) : (
@@ -269,7 +266,7 @@ function F1TeamTopDownWatermark({ team }: { team: F1TeamId }) {
 
       {/* Square Engineering Grid Layered ON TOP of the F1 Car */}
       <svg
-        className="fixed inset-0 z-10 w-full h-full opacity-[0.22] dark:opacity-[0.20]"
+        className="absolute inset-0 z-10 w-full h-full opacity-[0.22] dark:opacity-[0.20]"
         style={{ color: cfg.primary }}
         viewBox="0 0 600 1000"
         fill="none"

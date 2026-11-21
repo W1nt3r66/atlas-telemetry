@@ -1,0 +1,21 @@
+{
+  "name": "Atlas — Telemetry, Mileage & Garage",
+  "short_name": "Atlas",
+  "description": "Minimal F1-inspired car telemetry, mileage & garage app",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b151e",
+  "theme_color": "#0e84eb",
+  "icons": [
+    {
+      "src": "/icon",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-icon",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
