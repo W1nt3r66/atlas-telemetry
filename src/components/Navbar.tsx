@@ -379,7 +379,11 @@ export default function Navbar() {
                 type="button"
                 onClick={signOut}
                 title={`Sign Out (${user.email})`}
-                className="funky-btn px-3 py-2 rounded-full bg-[var(--accent-secondary)] font-extrabold text-xs flex items-center gap-1.5 cursor-pointer"
+                className={`px-3 py-2 rounded-full font-extrabold text-xs flex items-center gap-1.5 cursor-pointer transition border ${
+                  enhancedTheme
+                    ? "bg-rose-500/15 hover:bg-rose-500/25 text-rose-600 dark:text-rose-400 border-rose-400/40"
+                    : "funky-btn bg-[var(--accent-secondary)]"
+                }`}
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Sign Out</span>
@@ -422,6 +426,19 @@ export default function Navbar() {
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
+      )}
+
+      {/* Floating Add Entry Button on All Logged-In Pages */}
+      {user && (
+        <button
+          type="button"
+          onClick={() => setIsAddOpen(true)}
+          aria-label="Add Entry"
+          title="Add Entry"
+          className="funky-btn-primary fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 w-12 h-12 rounded-full flex items-center justify-center shadow-xl cursor-pointer transition-transform hover:scale-105 active:scale-95"
+        >
+          <Plus className="w-5 h-5 stroke-[2.75]" />
+        </button>
       )}
 
       {/* Only Show Floating Navigation Dock Once Logged In */}

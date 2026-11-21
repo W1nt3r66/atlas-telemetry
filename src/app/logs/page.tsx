@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useApp, LogEntry } from "@/context/AppContext";
+import { useDashboardTheme } from "@/hooks/useDashboardTheme";
 import {
   FileDown,
   Filter,
@@ -23,6 +24,13 @@ const CATEGORY_THEME: Record<
     label: string;
     shortLabel: string;
     stroke: string;
+    classicStroke: string;
+    classicFrostedFill: string;
+    classicFrostedRim: string;
+    classicBadgeBg: string;
+    classicBadgeText: string;
+    classicBadgeBorder: string;
+    classicCardTint: string;
     badgeBg: string;
     badgeText: string;
     badgeBorder: string;
@@ -33,6 +41,13 @@ const CATEGORY_THEME: Record<
     label: "Fuel",
     shortLabel: "Fuel",
     stroke: "#0e84eb",
+    classicStroke: "#025cbc",
+    classicFrostedFill: "rgba(2, 92, 188, 0.36)",
+    classicFrostedRim: "rgba(186, 224, 253, 0.65)",
+    classicBadgeBg: "rgba(2, 92, 188, 0.12)",
+    classicBadgeText: "#025cbc",
+    classicBadgeBorder: "rgba(2, 92, 188, 0.3)",
+    classicCardTint: "rgba(2, 92, 188, 0.045)",
     badgeBg: "rgba(14, 132, 235, 0.16)",
     badgeText: "#025cbc",
     badgeBorder: "rgba(14, 132, 235, 0.42)",
@@ -42,6 +57,13 @@ const CATEGORY_THEME: Record<
     label: "Parts & Accessories",
     shortLabel: "Parts",
     stroke: "#6366f1",
+    classicStroke: "#0e84eb",
+    classicFrostedFill: "rgba(14, 132, 235, 0.32)",
+    classicFrostedRim: "rgba(219, 239, 254, 0.72)",
+    classicBadgeBg: "rgba(14, 132, 235, 0.12)",
+    classicBadgeText: "#025cbc",
+    classicBadgeBorder: "rgba(14, 132, 235, 0.3)",
+    classicCardTint: "rgba(14, 132, 235, 0.04)",
     badgeBg: "rgba(99, 102, 241, 0.16)",
     badgeText: "#4338ca",
     badgeBorder: "rgba(99, 102, 241, 0.42)",
@@ -51,6 +73,13 @@ const CATEGORY_THEME: Record<
     label: "Service",
     shortLabel: "Service",
     stroke: "#10b981",
+    classicStroke: "#3898ec",
+    classicFrostedFill: "rgba(56, 152, 236, 0.3)",
+    classicFrostedRim: "rgba(240, 249, 255, 0.78)",
+    classicBadgeBg: "rgba(56, 152, 236, 0.14)",
+    classicBadgeText: "#025cbc",
+    classicBadgeBorder: "rgba(56, 152, 236, 0.34)",
+    classicCardTint: "rgba(56, 152, 236, 0.045)",
     badgeBg: "rgba(16, 185, 129, 0.16)",
     badgeText: "#047857",
     badgeBorder: "rgba(16, 185, 129, 0.42)",
@@ -60,6 +89,13 @@ const CATEGORY_THEME: Record<
     label: "Wash & Care",
     shortLabel: "Wash",
     stroke: "#f59e0b",
+    classicStroke: "#7cc0f8",
+    classicFrostedFill: "rgba(124, 192, 248, 0.28)",
+    classicFrostedRim: "rgba(255, 255, 255, 0.85)",
+    classicBadgeBg: "rgba(124, 192, 248, 0.18)",
+    classicBadgeText: "#025cbc",
+    classicBadgeBorder: "rgba(124, 192, 248, 0.42)",
+    classicCardTint: "rgba(124, 192, 248, 0.055)",
     badgeBg: "rgba(245, 158, 11, 0.18)",
     badgeText: "#b45309",
     badgeBorder: "rgba(245, 158, 11, 0.45)",
@@ -70,17 +106,16 @@ const CATEGORY_THEME: Record<
 function LogsContent() {
   const searchParams = useSearchParams();
   const { theme, activeVehicle, logs, updateLog, deleteLog, owner } = useApp();
+  const { enhancedTheme } = useDashboardTheme();
   const [filterType, setFilterType] = useState<FilterTab>("all");
   const [activeSliceIdx, setActiveSliceIdx] = useState<number | null>(null);
 
-  // Collapsible section & individual row states
   const [isLogsSectionOpen, setIsLogsSectionOpen] = useState(true);
   const [expandedLogIds, setExpandedLogIds] = useState<Record<string, boolean>>(
     {},
   );
   const [visibleCount, setVisibleCount] = useState<number>(6);
 
-  // Edit modal state
   const [editingEntry, setEditingEntry] = useState<LogEntry | null>(null);
   const [editDate, setEditDate] = useState("");
   const [editAmount, setEditAmount] = useState("");
@@ -92,7 +127,34 @@ function LogsContent() {
 
   const isDark = theme === "dark";
 
+  const getSliceStroke = (type: LogEntry["type"]) =>
+    enhancedTheme
+      ? CATEGORY_THEME[type].stroke
+      : CATEGORY_THEME[type].classicStroke;
+
+  const getFrostedDotStyle = (
+    type: LogEntry["type"],
+    isActivePill = false,
+  ): React.CSSProperties => {
+    if (isActivePill) {
+      return { backgroundColor: "#ffffff" };
+    }
+    if (!enhancedTheme) {
+      const cat = CATEGORY_THEME[type];
+      return {
+        backgroundColor: cat.classicFrostedFill,
+        border: `1px solid ${cat.classicFrostedRim}`,
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+      };
+    }
+    return { backgroundColor: CATEGORY_THEME[type].stroke };
+  };
+
   const getReadableTextColor = (type: LogEntry["type"]) => {
+    if (!enhancedTheme) {
+      return isDark ? "#bae0fd" : CATEGORY_THEME[type].classicBadgeText;
+    }
     if (!isDark) return CATEGORY_THEME[type].badgeText;
     if (type === "fuel") return "#60a5fa";
     if (type === "expense") return "#a5b4fc";
@@ -178,7 +240,6 @@ function LogsContent() {
     await deleteLog(id);
   };
 
-  // Show last 8 fuel entries chronologically
   const comboPoints = [...vehicleLogs]
     .filter(
       (l) =>
@@ -260,7 +321,6 @@ function LogsContent() {
         },${lineBottom + 6}`
       : "";
 
-  // Category Expense Split Breakdown & Donut Geometry
   const totalSpend = vehicleLogs.reduce(
     (sum, l) => sum + Number(l.amount || 0),
     0,
@@ -413,7 +473,6 @@ function LogsContent() {
           </button>
         </div>
 
-        {/* Synchronized Dual-Track Mileage & Fuel Chart + Interactive Donut Pie Chart */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="funky-card p-5 space-y-2.5">
             <div className="flex items-center justify-between gap-2">
@@ -422,7 +481,14 @@ function LogsContent() {
               </span>
               <div className="flex items-center gap-2.5 text-[10px] font-extrabold text-[var(--text-muted)]">
                 <span className="inline-flex items-center gap-1">
-                  <span className="w-2.5 h-0.5 bg-current inline-block" />
+                  <span
+                    className="w-2.5 h-0.5 inline-block"
+                    style={{
+                      backgroundColor: enhancedTheme
+                        ? "#6366f1"
+                        : "currentColor",
+                    }}
+                  />
                   km/l
                 </span>
                 <span className="inline-flex items-center gap-1">
@@ -442,24 +508,59 @@ function LogsContent() {
                 className="w-full h-48 overflow-visible"
               >
                 <defs>
-                  <linearGradient
-                    id="mileageAreaGrad"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop
-                      offset="0%"
-                      stopColor="currentColor"
-                      stopOpacity="0.16"
-                    />
-                    <stop
-                      offset="100%"
-                      stopColor="currentColor"
-                      stopOpacity="0.0"
-                    />
-                  </linearGradient>
+                  {enhancedTheme ? (
+                    <>
+                      <linearGradient
+                        id="mileageLineGrad"
+                        x1="0%"
+                        y1="0%"
+                        x2="100%"
+                        y2="0%"
+                      >
+                        <stop offset="0%" stopColor="#0e84eb" />
+                        <stop offset="40%" stopColor="#6366f1" />
+                        <stop offset="72%" stopColor="#10b981" />
+                        <stop offset="100%" stopColor="#f59e0b" />
+                      </linearGradient>
+                      <linearGradient
+                        id="mileageAreaGrad"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="0%"
+                          stopColor="#6366f1"
+                          stopOpacity="0.2"
+                        />
+                        <stop
+                          offset="100%"
+                          stopColor="#0e84eb"
+                          stopOpacity="0.0"
+                        />
+                      </linearGradient>
+                    </>
+                  ) : (
+                    <linearGradient
+                      id="mileageAreaGrad"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="0%"
+                        stopColor="currentColor"
+                        stopOpacity="0.16"
+                      />
+                      <stop
+                        offset="100%"
+                        stopColor="currentColor"
+                        stopOpacity="0.0"
+                      />
+                    </linearGradient>
+                  )}
                 </defs>
 
                 <line
@@ -535,8 +636,10 @@ function LogsContent() {
                 {mileageCoords.length > 1 && (
                   <polyline
                     fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
+                    stroke={
+                      enhancedTheme ? "url(#mileageLineGrad)" : "currentColor"
+                    }
+                    strokeWidth={enhancedTheme ? "3" : "2.5"}
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     points={polylineStr}
@@ -550,7 +653,7 @@ function LogsContent() {
                       cy={c.yLine}
                       r="4"
                       fill="var(--bg-popover)"
-                      stroke="#0e84eb"
+                      stroke={enhancedTheme ? "#6366f1" : "#0e84eb"}
                       strokeWidth="2.5"
                     />
                     <rect
@@ -580,7 +683,6 @@ function LogsContent() {
             )}
           </div>
 
-          {/* Interactive Donut Pie Chart Expense Split */}
           <div className="funky-card p-5 flex flex-col justify-between gap-3.5">
             <div className="flex items-center justify-between">
               <span className="font-black text-sm flex items-center gap-1.5">
@@ -615,6 +717,7 @@ function LogsContent() {
 
                       {donutSlices.map((slice, idx) => {
                         const isSelected = activeSliceIdx === idx;
+                        const sliceColor = getSliceStroke(slice.type);
                         return (
                           <circle
                             key={slice.label}
@@ -622,7 +725,7 @@ function LogsContent() {
                             cy="56"
                             r={donutRadius}
                             fill="none"
-                            stroke={slice.stroke}
+                            stroke={sliceColor}
                             strokeWidth={isSelected ? "18" : "15"}
                             strokeDasharray={slice.strokeDasharray}
                             strokeDashoffset={slice.strokeDashoffset}
@@ -638,8 +741,10 @@ function LogsContent() {
                             style={{
                               opacity:
                                 activeSliceIdx === null || isSelected
-                                  ? 1
-                                  : 0.42,
+                                  ? enhancedTheme
+                                    ? 1
+                                    : 0.94
+                                  : 0.38,
                             }}
                           />
                         );
@@ -674,6 +779,14 @@ function LogsContent() {
                   {donutSlices.map((slice, idx) => {
                     const isSelected = activeSliceIdx === idx;
                     const textColor = getReadableTextColor(slice.type);
+                    const sliceColor = getSliceStroke(slice.type);
+                    const badgeBg = enhancedTheme
+                      ? slice.badgeBg
+                      : slice.classicBadgeBg;
+                    const badgeBorder = enhancedTheme
+                      ? slice.badgeBorder
+                      : slice.classicBadgeBorder;
+
                     return (
                       <button
                         key={slice.label}
@@ -698,14 +811,14 @@ function LogsContent() {
                         style={{
                           borderColor:
                             isSelected || filterType === slice.type
-                              ? slice.stroke
+                              ? sliceColor
                               : "var(--border-subtle)",
                         }}
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <span
                             className="w-2.5 h-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: slice.stroke }}
+                            style={getFrostedDotStyle(slice.type, false)}
                           />
                           <span className="text-xs font-extrabold">
                             {slice.label}
@@ -719,9 +832,9 @@ function LogsContent() {
                           <span
                             className="text-[11px] font-black px-2 py-0.5 rounded-full tabular-nums border"
                             style={{
-                              backgroundColor: slice.badgeBg,
+                              backgroundColor: badgeBg,
                               color: textColor,
-                              borderColor: slice.badgeBorder,
+                              borderColor: badgeBorder,
                             }}
                           >
                             {slice.roundedPct}%
@@ -736,9 +849,7 @@ function LogsContent() {
           </div>
         </div>
 
-        {/* Collapsible Activity Ledger Container */}
         <div className="funky-card p-4 sm:p-5 space-y-3.5">
-          {/* Collapsible Section Header */}
           <button
             type="button"
             onClick={() => setIsLogsSectionOpen((prev) => !prev)}
@@ -771,32 +882,23 @@ function LogsContent() {
 
           {isLogsSectionOpen && (
             <div className="space-y-3 pt-1 border-t border-[var(--border-subtle)]">
-              {/* Color-Coded Category Filter Pills */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1">
                 <Filter className="w-4 h-4 shrink-0 text-[var(--text-muted)]" />
                 {(
                   [
-                    { id: "all", label: "All", dotColor: null },
-                    {
-                      id: "fuel",
-                      label: "Fuel",
-                      dotColor: CATEGORY_THEME.fuel.stroke,
-                    },
+                    { id: "all", label: "All", type: null },
+                    { id: "fuel", label: "Fuel", type: "fuel" as const },
                     {
                       id: "expense",
                       label: "Parts & Expenses",
-                      dotColor: CATEGORY_THEME.expense.stroke,
+                      type: "expense" as const,
                     },
                     {
                       id: "service",
                       label: "Service",
-                      dotColor: CATEGORY_THEME.service.stroke,
+                      type: "service" as const,
                     },
-                    {
-                      id: "wash",
-                      label: "Wash",
-                      dotColor: CATEGORY_THEME.wash.stroke,
-                    },
+                    { id: "wash", label: "Wash", type: "wash" as const },
                   ] as const
                 ).map((tab) => {
                   const active = filterType === tab.id;
@@ -814,12 +916,10 @@ function LogsContent() {
                           : "funky-btn bg-[var(--accent-secondary)]"
                       }`}
                     >
-                      {tab.dotColor && (
+                      {tab.type && (
                         <span
-                          className="w-2 h-2 rounded-full shrink-0"
-                          style={{
-                            backgroundColor: active ? "#ffffff" : tab.dotColor,
-                          }}
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={getFrostedDotStyle(tab.type, active)}
                         />
                       )}
                       <span>{tab.label}</span>
@@ -828,7 +928,6 @@ function LogsContent() {
                 })}
               </div>
 
-              {/* Compact Accordion Log Rows */}
               {displayedLogs.length === 0 ? (
                 <div className="py-6 text-center text-xs text-[var(--text-muted)]">
                   No logs found for this filter.
@@ -838,7 +937,17 @@ function LogsContent() {
                   {displayedLogs.map((entry) => {
                     const catStyle =
                       CATEGORY_THEME[entry.type] || CATEGORY_THEME.expense;
+                    const accentStroke = getSliceStroke(entry.type);
                     const badgeTextColor = getReadableTextColor(entry.type);
+                    const badgeBg = enhancedTheme
+                      ? catStyle.badgeBg
+                      : catStyle.classicBadgeBg;
+                    const badgeBorder = enhancedTheme
+                      ? catStyle.badgeBorder
+                      : catStyle.classicBadgeBorder;
+                    const cardTint = enhancedTheme
+                      ? catStyle.cardTint
+                      : catStyle.classicCardTint;
                     const isRowOpen = !!expandedLogIds[entry.id];
                     const ratePerLiter =
                       entry.type === "fuel" &&
@@ -853,19 +962,18 @@ function LogsContent() {
                         onClick={() => toggleLogRow(entry.id)}
                         style={{
                           borderLeftWidth: "4px",
-                          borderLeftColor: catStyle.stroke,
-                          backgroundImage: `linear-gradient(90deg, ${catStyle.cardTint} 0%, transparent 50%)`,
+                          borderLeftColor: accentStroke,
+                          backgroundImage: `linear-gradient(90deg, ${cardTint} 0%, transparent 50%)`,
                         }}
                         className="rounded-2xl border border-[var(--border-color)] bg-[var(--accent-secondary)]/55 px-3.5 py-2.5 cursor-pointer transition-all hover:brightness-105"
                       >
-                        {/* Compact Single-Line Summary Header */}
                         <div className="flex items-center justify-between gap-2.5">
                           <div className="flex items-center gap-2 min-w-0 flex-1">
                             <span
                               style={{
-                                backgroundColor: catStyle.badgeBg,
+                                backgroundColor: badgeBg,
                                 color: badgeTextColor,
-                                borderColor: catStyle.badgeBorder,
+                                borderColor: badgeBorder,
                               }}
                               className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide border"
                             >
@@ -911,7 +1019,6 @@ function LogsContent() {
                           </div>
                         </div>
 
-                        {/* Expandable Details & Edit/Delete Controls */}
                         {isRowOpen && (
                           <div className="mt-2.5 pt-2.5 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs">
                             <div className="text-[11px] font-medium text-[var(--text-muted)] space-y-0.5">
@@ -965,7 +1072,6 @@ function LogsContent() {
                 </div>
               )}
 
-              {/* Pagination Controls: Show More / Show Less */}
               {filteredLogs.length > 6 && (
                 <div className="pt-1 flex items-center justify-center gap-2">
                   {hasMoreLogs && (
@@ -993,7 +1099,6 @@ function LogsContent() {
         </div>
       </div>
 
-      {/* Edit Log Modal */}
       {editingEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm">
           <div className="glass-modal w-full max-w-md p-5 sm:p-6 space-y-4">

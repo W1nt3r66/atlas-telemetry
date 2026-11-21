@@ -7,6 +7,7 @@ import {
   WheelerType,
   Vehicle,
 } from "@/context/AppContext";
+import { useDashboardTheme } from "@/hooks/useDashboardTheme";
 import VehicleAvatar, {
   AVATAR_PRESETS,
   VehicleAvatarKey,
@@ -14,7 +15,6 @@ import VehicleAvatar, {
   saveVehicleAvatar,
 } from "@/components/VehicleAvatar";
 import {
-  Warehouse,
   Plus,
   Pencil,
   Trash2,
@@ -42,6 +42,7 @@ export default function GaragePage() {
     updateVehicle,
     deleteVehicle,
   } = useApp();
+  const { enhancedTheme } = useDashboardTheme();
 
   const [name, setName] = useState("");
   const [plate, setPlate] = useState("");
@@ -281,16 +282,13 @@ export default function GaragePage() {
       )}
 
       <div>
-        <h1 className="text-2xl font-black flex items-center gap-2">
-          <Warehouse className="w-6 h-6" /> My Garage
-        </h1>
+        <h1 className="text-2xl font-black">My Garage</h1>
         <p className="text-xs text-[var(--text-muted)]">
           Manage your vehicles, Color UI hero avatars, service intervals, and
           Insurance / PUC / RC renewal dates.
         </p>
       </div>
 
-      {/* Swipeable Horizontal Vehicle Carousel */}
       {vehicles.length > 0 && (
         <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-2 no-scrollbar">
           {vehicles.map((v) => {
@@ -424,18 +422,22 @@ export default function GaragePage() {
                   </div>
                 ) : (
                   <>
-                    <div className="flex items-start justify-between gap-2.5">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <VehicleAvatar
-                          avatarKey={currentCardAvatar}
-                          vehicleId={v.id}
-                          className="w-14 h-14"
-                        />
-                        <div className="min-w-0">
-                          <div className="text-xs font-extrabold text-[var(--text-muted)] truncate">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        {enhancedTheme && (
+                          <div className="w-20 h-12 flex items-center justify-start shrink-0 overflow-visible [&_img]:!w-full [&_img]:!h-full [&_img]:!max-w-none [&_img]:!object-contain [&_img]:!object-left [&_div]:!w-full [&_div]:!h-full [&_div]:!max-w-none [&_div]:!flex [&_div]:!items-center [&_div]:!justify-start [&_div]:!overflow-visible">
+                            <VehicleAvatar
+                              avatarKey={currentCardAvatar}
+                              vehicleId={v.id}
+                              className="!w-full !h-full !max-w-none !object-contain !object-left !overflow-visible"
+                            />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11px] font-extrabold text-[var(--text-muted)] truncate">
                             {v.plate || "NO PLATE"} • {v.fuel_type}
                           </div>
-                          <h3 className="text-lg font-black truncate">
+                          <h3 className="text-lg font-black leading-snug truncate">
                             {v.name}
                           </h3>
                           <p className="text-xs text-[var(--text-muted)] truncate">
@@ -444,7 +446,7 @@ export default function GaragePage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex items-center gap-1 shrink-0">
                         <button
                           type="button"
                           onClick={() => startEdit(v)}
@@ -469,28 +471,27 @@ export default function GaragePage() {
                       </div>
                     </div>
 
-                    {/* Compact Renewal Dates Summary */}
-                    <div className="flex flex-wrap gap-1.5 text-[10px] font-bold">
-                      <span className="px-2 py-0.5 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)]">
+                    <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
+                      <span className="px-2.5 py-0.5 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)]">
                         Ins: {v.insurance_expiry || "Not set"}
                       </span>
-                      <span className="px-2 py-0.5 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)]">
+                      <span className="px-2.5 py-0.5 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)]">
                         PUC: {v.puc_expiry || "Not set"}
                       </span>
-                      <span className="px-2 py-0.5 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)]">
+                      <span className="px-2.5 py-0.5 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)]">
                         RC: {v.rc_expiry || "Not set"}
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between pt-2 border-t border-[var(--border-subtle)] text-xs">
-                      <span className="text-[var(--text-muted)]">
+                    <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-[var(--border-subtle)] text-xs">
+                      <span className="font-semibold text-[var(--text-muted)]">
                         Every{" "}
                         {(v.service_interval_km || 10000).toLocaleString()} km
                       </span>
                       <button
                         type="button"
                         onClick={() => setActiveVehicleId(v.id)}
-                        className={`px-3 py-1 rounded-full font-extrabold cursor-pointer ${
+                        className={`px-3.5 py-1 rounded-full font-extrabold cursor-pointer ${
                           isActive
                             ? "funky-btn-primary"
                             : "funky-btn bg-[var(--accent-secondary)]"
@@ -507,7 +508,6 @@ export default function GaragePage() {
         </div>
       )}
 
-      {/* Add New Vehicle Form */}
       <form
         onSubmit={handleAddVehicle}
         className="funky-card w-full p-6 space-y-4"
@@ -638,7 +638,6 @@ export default function GaragePage() {
           </div>
         </div>
 
-        {/* 6-Avatar Preset Selector for Color UI Hero Tile */}
         <div className="pt-2 border-t border-[var(--border-subtle)]">
           <label className="text-xs font-extrabold flex items-center gap-1.5 text-[#025cbc] dark:text-[#3898ec]">
             <Sparkles className="w-4 h-4" />
@@ -678,7 +677,6 @@ export default function GaragePage() {
           </div>
         </div>
 
-        {/* Optional Compliance & Renewal Dates */}
         <div className="pt-2 border-t border-[var(--border-subtle)] space-y-3">
           <div className="text-xs font-extrabold flex items-center gap-1.5 text-[#025cbc] dark:text-[#3898ec]">
             <ShieldCheck className="w-4 h-4" />

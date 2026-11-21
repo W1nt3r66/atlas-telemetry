@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useApp } from "@/context/AppContext";
+import { useDashboardTheme } from "@/hooks/useDashboardTheme";
 import {
   Navigation,
   ExternalLink,
@@ -50,7 +51,6 @@ async function searchPlacesClient(query: string): Promise<PlaceSuggestion[]> {
   const results: PlaceSuggestion[] = [];
   const seen = new Set<string>();
 
-  // 1. ArcGIS World Geocoder (supports exact schools, landmarks, highways & cities)
   try {
     const arcUrl = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?SingleLine=${encodeURIComponent(
       q,
@@ -97,7 +97,6 @@ async function searchPlacesClient(query: string): Promise<PlaceSuggestion[]> {
     // Fall through to Open-Meteo
   }
 
-  // 2. Open-Meteo Geocoding API (global CDN fallback)
   if (results.length < 4) {
     try {
       const omUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
@@ -140,6 +139,7 @@ async function searchPlacesClient(query: string): Promise<PlaceSuggestion[]> {
 
 export default function TripCalculatorPage() {
   const { user, activeVehicle, logs } = useApp();
+  const { enhancedTheme } = useDashboardTheme();
 
   const [origin, setOrigin] = useState("");
   const [originCoords, setOriginCoords] = useState<{
@@ -174,7 +174,6 @@ export default function TripCalculatorPage() {
   const destWrapRef = useRef<HTMLDivElement | null>(null);
   const fuelInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Derive latest fuel rate (₹/L) from active vehicle's most recent fuel log
   const vehicleFuelLogs = activeVehicle
     ? [...logs]
         .filter(
@@ -202,7 +201,6 @@ export default function TripCalculatorPage() {
       )
     : null;
 
-  // Sync default fuel price from last fill whenever vehicle/logs load unless user is manually editing
   useEffect(() => {
     if (!user) {
       setOrigin("");
@@ -240,7 +238,6 @@ export default function TripCalculatorPage() {
     return () => document.removeEventListener("pointerdown", handleOutside);
   }, []);
 
-  // Debounced Start Location autocomplete
   useEffect(() => {
     const q = origin.trim();
     if (q.length < 2 || originCoords !== null) {
@@ -259,7 +256,6 @@ export default function TripCalculatorPage() {
     return () => clearTimeout(timer);
   }, [origin, originCoords]);
 
-  // Debounced Destination autocomplete
   useEffect(() => {
     const q = destination.trim();
     if (q.length < 2 || destCoords !== null) {
@@ -439,7 +435,6 @@ export default function TripCalculatorPage() {
 
       <form onSubmit={calculateRoute} className="funky-card p-6 space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Start Location with Live Maps Suggestions + GPS */}
           <div ref={originWrapRef} className="relative">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold">Start Location</label>
@@ -521,7 +516,6 @@ export default function TripCalculatorPage() {
             )}
           </div>
 
-          {/* Destination with Live Maps Suggestions */}
           <div ref={destWrapRef} className="relative">
             <label className="block text-xs font-bold">Destination</label>
             <div className="relative">
@@ -589,7 +583,6 @@ export default function TripCalculatorPage() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
-          {/* Fuel Rate Auto-Synced from Last Fill + Manual Edit Button */}
           <div>
             <div className="flex items-center justify-between gap-2">
               <label className="text-xs font-bold">Fuel Rate (₹/Liter)</label>
@@ -692,7 +685,6 @@ export default function TripCalculatorPage() {
         </div>
       </form>
 
-      {/* Trip Output Summary */}
       <div className="grid grid-cols-3 gap-3">
         <div className="funky-card p-4 text-center space-y-1">
           <div className="text-[11px] font-bold text-[var(--text-muted)]">
@@ -720,7 +712,6 @@ export default function TripCalculatorPage() {
         </div>
       </div>
 
-      {/* Stylized Telemetry Route Vector */}
       <div className="funky-card p-5 space-y-3">
         <div className="flex items-center justify-between text-xs font-extrabold">
           <span className="flex items-center gap-1.5">
@@ -733,20 +724,39 @@ export default function TripCalculatorPage() {
         </div>
 
         <svg viewBox="0 0 400 90" className="w-full h-24">
+          <defs>
+            <linearGradient
+              id="routeTelemetryGrad"
+              x1="0%"
+              y1="0%"
+              x2="100%"
+              y2="0%"
+            >
+              <stop offset="0%" stopColor="#0e84eb" />
+              <stop offset="40%" stopColor="#6366f1" />
+              <stop offset="72%" stopColor="#10b981" />
+              <stop offset="100%" stopColor="#f59e0b" />
+            </linearGradient>
+          </defs>
           <path
             d="M 25 68 Q 120 55, 200 42 T 375 22"
             fill="none"
-            stroke="currentColor"
+            stroke={enhancedTheme ? "url(#routeTelemetryGrad)" : "currentColor"}
             strokeWidth="3.5"
             strokeLinecap="round"
           />
-          <circle cx="25" cy="68" r="6" fill="currentColor" />
+          <circle
+            cx="25"
+            cy="68"
+            r="6"
+            fill={enhancedTheme ? "#0e84eb" : "currentColor"}
+          />
           <circle
             cx="375"
             cy="22"
             r="6"
             fill="var(--bg-main)"
-            stroke="currentColor"
+            stroke={enhancedTheme ? "#f59e0b" : "currentColor"}
             strokeWidth="3"
           />
         </svg>

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useApp } from "@/context/AppContext";
-import { User, CheckCircle2, Trash2, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Trash2, ShieldCheck } from "lucide-react";
 
 export default function OwnerPage() {
   const { user, owner, updateOwner, deleteAccount } = useApp();
@@ -57,9 +57,7 @@ export default function OwnerPage() {
       )}
 
       <div>
-        <h1 className="text-2xl font-black flex items-center gap-2">
-          <User className="w-6 h-6" /> Owner &amp; Cloud Profile
-        </h1>
+        <h1 className="text-2xl font-black">Owner &amp; Cloud Profile</h1>
         <p className="text-xs text-[var(--text-muted)]">
           Manage your driver details synced across devices via Google Sign-In.
         </p>
