@@ -2,7 +2,10 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useApp, LogEntry } from "@/context/AppContext";
-import { calculateMaintenanceStatus } from "@/lib/maintenance";
+import {
+  calculateMaintenanceStatus,
+  useLiveWashWeather,
+} from "@/lib/maintenance";
 import VehicleAvatar from "@/components/VehicleAvatar";
 import { useDashboardTheme } from "@/hooks/useDashboardTheme";
 import Link from "next/link";
@@ -20,6 +23,9 @@ import {
   X,
   ShieldCheck,
   Gauge,
+  Cloud,
+  CloudRain,
+  Sun,
 } from "lucide-react";
 
 const TELEMETRY_DOT: Record<LogEntry["type"], string> = {
@@ -127,6 +133,7 @@ export default function DashboardPage() {
     owner,
   } = useApp();
   const { enhancedTheme } = useDashboardTheme();
+  const liveWeather = useLiveWashWeather();
 
   const [quickModalType, setQuickModalType] = useState<
     "wash" | "service" | null
@@ -289,8 +296,21 @@ export default function DashboardPage() {
   ];
 
   const maint = activeVehicle
-    ? calculateMaintenanceStatus(activeVehicle, latestOdo)
+    ? calculateMaintenanceStatus(activeVehicle, latestOdo, liveWeather)
     : null;
+
+  const isRainyWeather = Boolean(
+    liveWeather &&
+    ((liveWeather.precipitationMm || 0) >= 0.3 ||
+      (liveWeather.upcomingRainMm || 0) >= 4),
+  );
+
+  const isCloudyWeather = Boolean(
+    liveWeather &&
+    !isRainyWeather &&
+    ((liveWeather.humidityPct || 0) >= 80 ||
+      (liveWeather.temperatureC ?? 26) < 22),
+  );
 
   const serviceIntervalKm = activeVehicle?.service_interval_km || 10000;
   const baseServiceOdo =
@@ -430,36 +450,62 @@ export default function DashboardPage() {
         }}
         className="w-full max-w-full space-y-4 transition-transform duration-200 ease-out"
       >
-        {/* Device Clock Greeting & Swipe Pagination Dots */}
-        <div className="px-1 flex items-center justify-between">
-          <p className="text-xs font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
+        {/* Device Clock Greeting, Weather Pill & Swipe Pagination Dots */}
+        <div className="px-1 flex items-center justify-between gap-2">
+          <p className="text-xs font-extrabold uppercase tracking-wider text-[var(--text-muted)] truncate">
             {greeting}, {user ? driverFirstName : "Guest"}
           </p>
 
-          {user && vehicles.length > 1 && (
-            <div
-              className="flex items-center gap-1.5"
-              aria-label="Switch vehicle"
-            >
-              {vehicles.map((v) => {
-                const isCurrent = v.id === activeVehicle?.id;
-                return (
-                  <button
-                    key={v.id}
-                    type="button"
-                    onClick={() => setActiveVehicleId(v.id)}
-                    title={`Switch to ${v.name}`}
-                    aria-label={`Switch to ${v.name}`}
-                    className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                      isCurrent
-                        ? "w-5 bg-[#025cbc] dark:bg-[#3898ec]"
-                        : "w-1.5 bg-[var(--text-muted)]/35 hover:bg-[var(--text-muted)]/60"
-                    }`}
-                  />
-                );
-              })}
-            </div>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {liveWeather && (
+              <div
+                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border tabular-nums ${
+                  isRainyWeather
+                    ? "bg-sky-500/15 border-sky-400/40 text-sky-700 dark:text-sky-300"
+                    : isCloudyWeather
+                      ? "bg-slate-500/15 border-slate-400/35 text-slate-700 dark:text-slate-300"
+                      : "bg-[var(--accent-secondary)] border-[var(--border-color)] text-[var(--text-main)]"
+                }`}
+              >
+                {isRainyWeather ? (
+                  <CloudRain className="w-3 h-3 shrink-0 text-sky-500" />
+                ) : isCloudyWeather ? (
+                  <Cloud className="w-3 h-3 shrink-0 text-slate-500 dark:text-slate-300" />
+                ) : (
+                  <Sun className="w-3 h-3 shrink-0 text-amber-500" />
+                )}
+                <span>{Math.round(liveWeather.temperatureC)}°C</span>
+                <span className="text-[var(--text-muted)]">
+                  • {Math.round(liveWeather.humidityPct)}%
+                </span>
+              </div>
+            )}
+
+            {user && vehicles.length > 1 && (
+              <div
+                className="flex items-center gap-1.5"
+                aria-label="Switch vehicle"
+              >
+                {vehicles.map((v) => {
+                  const isCurrent = v.id === activeVehicle?.id;
+                  return (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => setActiveVehicleId(v.id)}
+                      title={`Switch to ${v.name}`}
+                      aria-label={`Switch to ${v.name}`}
+                      className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                        isCurrent
+                          ? "w-5 bg-[#025cbc] dark:bg-[#3898ec]"
+                          : "w-1.5 bg-[var(--text-muted)]/35 hover:bg-[var(--text-muted)]/60"
+                      }`}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Hero Vehicle Banner (or Unified Guest Welcome Card When Logged Out) */}

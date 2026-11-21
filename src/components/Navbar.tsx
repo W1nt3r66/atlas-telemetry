@@ -4,7 +4,10 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useApp } from "@/context/AppContext";
-import { calculateMaintenanceStatus } from "@/lib/maintenance";
+import {
+  calculateMaintenanceStatus,
+  useLiveWashWeather,
+} from "@/lib/maintenance";
 import { useDashboardTheme } from "@/hooks/useDashboardTheme";
 import AddEntryModal from "./AddEntryModal";
 import {
@@ -14,16 +17,14 @@ import {
   Warehouse,
   User,
   Plus,
-  Sun,
+  Sunrise,
   Moon,
   Bell,
   BellRing,
   CheckCircle2,
   LogOut,
   X,
-  Palette,
-  Layers,
-  Flag,
+  SlidersHorizontal,
 } from "lucide-react";
 
 type F1TeamId =
@@ -45,6 +46,76 @@ const F1_TEAMS: { id: F1TeamId; label: string; swatch: string }[] = [
 
 const TEAM_STORAGE_KEY = "atlas_f1_team_theme";
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
+function PirelliTyreIcon({ compound }: { compound: "hard" | "soft" }) {
+  const sidewallColor = compound === "hard" ? "#e2e8f0" : "#ef4444";
+  const rimRingColor = compound === "hard" ? "#94a3b8" : "#dc2626";
+
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      className="w-4 h-4 shrink-0"
+      aria-hidden="true"
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="9.2"
+        fill="#18181b"
+        stroke={sidewallColor}
+        strokeWidth="2.6"
+      />
+      <circle
+        cx="12"
+        cy="12"
+        r="5.2"
+        fill="#27272a"
+        stroke={rimRingColor}
+        strokeWidth="1.2"
+      />
+      <circle cx="12" cy="12" r="1.9" fill={sidewallColor} />
+    </svg>
+  );
+}
+
+function F1CarLiveryIcon({ color }: { color: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 16"
+      fill="none"
+      className="w-4 h-3.5 shrink-0"
+      aria-hidden="true"
+    >
+      {/* Front wing */}
+      <rect x="17.5" y="3" width="2.2" height="10" rx="0.8" fill={color} />
+      {/* Front wheels */}
+      <rect x="14.2" y="1.2" width="3.4" height="2.4" rx="0.8" fill="#18181b" />
+      <rect
+        x="14.2"
+        y="12.4"
+        width="3.4"
+        height="2.4"
+        rx="0.8"
+        fill="#18181b"
+      />
+      {/* Chassis & nose cone */}
+      <path
+        d="M4.5 6.3L11.5 6.8L18.5 7.5V8.5L11.5 9.2L4.5 9.7V6.3Z"
+        fill={color}
+      />
+      {/* Sidepods */}
+      <rect x="7.5" y="4.3" width="5.2" height="7.4" rx="1.6" fill={color} />
+      {/* Cockpit / halo */}
+      <ellipse cx="11.2" cy="8" rx="1.7" ry="1.2" fill="#09090b" />
+      {/* Rear wheels */}
+      <rect x="4.8" y="1.2" width="3.6" height="2.6" rx="0.8" fill="#18181b" />
+      <rect x="4.8" y="12.2" width="3.6" height="2.6" rx="0.8" fill="#18181b" />
+      {/* Rear wing */}
+      <rect x="2.2" y="2.6" width="2.2" height="10.8" rx="0.8" fill={color} />
+    </svg>
+  );
+}
 
 async function sendCrossPlatformNotification(
   title: string,
@@ -176,6 +247,7 @@ export default function Navbar() {
     signOut,
   } = useApp();
   const { enhancedTheme, setThemeMode } = useDashboardTheme();
+  const liveWeather = useLiveWashWeather();
 
   const [f1Team, setF1Team] = useState<F1TeamId>("default");
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -283,7 +355,7 @@ export default function Navbar() {
     ...vehicleLogs.map((l) => l.odo_reading || 0),
   );
   const maint = activeVehicle
-    ? calculateMaintenanceStatus(activeVehicle, latestOdo)
+    ? calculateMaintenanceStatus(activeVehicle, latestOdo, liveWeather)
     : null;
 
   const isWashWithin7Days = Boolean(
@@ -448,11 +520,7 @@ export default function Navbar() {
                 title="Theme Settings"
                 className="funky-btn p-2 sm:px-3 sm:py-2 rounded-full bg-[var(--accent-secondary)] font-extrabold text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
               >
-                {theme === "light" ? (
-                  <Sun className="w-4 h-4 text-amber-500" />
-                ) : (
-                  <Moon className="w-4 h-4 text-[var(--team-accent)]" />
-                )}
+                <SlidersHorizontal className="w-4 h-4 text-[#025cbc] dark:text-[#60a5fa]" />
                 <span className="hidden sm:inline">Theme</span>
               </button>
 
@@ -487,7 +555,7 @@ export default function Navbar() {
                           theme === "light",
                         )}`}
                       >
-                        <Sun className="w-3.5 h-3.5 shrink-0" />
+                        <Sunrise className="w-3.5 h-3.5 shrink-0" />
                         <span>Light</span>
                       </button>
                       <button
@@ -518,7 +586,7 @@ export default function Navbar() {
                           enhancedTheme,
                         )}`}
                       >
-                        <Palette className="w-3.5 h-3.5 shrink-0" />
+                        <PirelliTyreIcon compound="hard" />
                         <span>Hard</span>
                       </button>
                       <button
@@ -528,18 +596,18 @@ export default function Navbar() {
                           !enhancedTheme,
                         )}`}
                       >
-                        <Layers className="w-3.5 h-3.5 shrink-0" />
+                        <PirelliTyreIcon compound="soft" />
                         <span>Soft</span>
                       </button>
                     </div>
                   </div>
 
-                  {/* F1 TEAM LIVERY */}
+                  {/* LIVERY */}
                   <div className="space-y-1.5">
-                    <div className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1">
-                      <Flag className="w-3 h-3" /> F1 Team Livery
+                    <div className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
+                      Livery
                     </div>
-                    <div className="grid grid-cols-2 gap-1.5">
+                    <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-subtle)]">
                       {F1_TEAMS.map((t) => {
                         const active = f1Team === t.id;
                         return (
@@ -547,27 +615,20 @@ export default function Navbar() {
                             key={t.id}
                             type="button"
                             onClick={() => selectF1Team(t.id)}
-                            style={
+                            className={`funky-btn py-2 px-2.5 rounded-xl font-extrabold flex items-center gap-2 transition cursor-pointer text-left ${
                               active
-                                ? {
-                                    borderColor: t.swatch,
-                                    boxShadow: `0 0 0 1px ${t.swatch}`,
-                                  }
-                                : undefined
-                            }
-                            className={`py-2 px-2.5 rounded-xl font-extrabold flex items-center gap-2 transition cursor-pointer border text-left ${
-                              active
-                                ? "bg-white/30 dark:bg-white/15 text-[var(--text-main)]"
-                                : "bg-[var(--accent-secondary)]/70 border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-main)]"
+                                ? getSegmentedPillClass(true)
+                                : "bg-white/25 dark:bg-white/5 text-[var(--text-muted)] hover:text-[var(--text-main)]"
                             }`}
                           >
                             <span
                               data-atlas-swatch={
                                 t.id === "default" ? "true" : undefined
                               }
-                              className="w-2.5 h-2.5 rounded-full shrink-0"
-                              style={{ backgroundColor: t.swatch }}
-                            />
+                              className="inline-flex items-center justify-center shrink-0"
+                            >
+                              <F1CarLiveryIcon color={t.swatch} />
+                            </span>
                             <span className="truncate">{t.label}</span>
                           </button>
                         );
