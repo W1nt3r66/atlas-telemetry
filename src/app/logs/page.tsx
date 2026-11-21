@@ -283,7 +283,7 @@ function LogsContent() {
   // Last 6 fillups for the combo graph
   const comboPoints = allFuelFillups.slice(-6);
 
-  // Last 12 months data for the Year popup
+  // Last 12 months data for the hidden 1Y popup
   const nowDate = new Date();
   const yearMonths = Array.from({ length: 12 }).map((_, idx) => {
     const d = new Date(
@@ -581,26 +581,18 @@ function LogsContent() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Mileage & Fuel Combo (Last 6 Fillups) — Tap for Year's Graph */}
+          {/* Mileage & Fuel Combo (Last 6 Fillups) — Tap graph for hidden 12-month popup */}
           <div
-            role="button"
-            tabIndex={0}
             onClick={() => setIsYearGraphOpen(true)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                setIsYearGraphOpen(true);
-              }
-            }}
-            title="Tap to view 12-month graph"
-            className="funky-card p-5 space-y-2.5 cursor-pointer hover:brightness-105 transition-all"
+            className="funky-card p-5 space-y-2.5 cursor-pointer"
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="font-black text-sm flex items-center gap-1.5">
-                <TrendingUp className="w-4 h-4" /> Mileage &amp; Fuel Combo
+              <span className="font-black text-sm flex items-center gap-1.5 whitespace-nowrap">
+                <TrendingUp className="w-4 h-4 shrink-0" /> Mileage &amp; Fuel
+                Combo
               </span>
-              <div className="flex items-center gap-2 text-[10px] font-extrabold text-[var(--text-muted)]">
-                <span className="inline-flex items-center gap-1">
+              <div className="flex items-center gap-2.5 text-[10px] font-extrabold text-[var(--text-muted)] shrink-0">
+                <span className="inline-flex items-center gap-1 whitespace-nowrap">
                   <span
                     className="w-2.5 h-0.5 inline-block"
                     style={{
@@ -611,12 +603,9 @@ function LogsContent() {
                   />
                   km/l
                 </span>
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1 whitespace-nowrap">
                   <span className="w-2.5 h-2.5 rounded-sm bg-current opacity-25 inline-block" />
                   Fuel (L)
-                </span>
-                <span className="px-2 py-0.5 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)] text-[var(--text-main)]">
-                  1Y View
                 </span>
               </div>
             </div>
@@ -1220,7 +1209,7 @@ function LogsContent() {
         </div>
       </div>
 
-      {/* 12-Month / Year Graph Modal */}
+      {/* Hidden 12-Month / Year Graph Modal (triggered by tapping the Mileage & Fuel Combo graph) */}
       {isYearGraphOpen && (
         <div
           onClick={() => setIsYearGraphOpen(false)}
@@ -1361,13 +1350,7 @@ function LogsContent() {
                       </span>
                     </div>
                     <div className="flex items-center gap-3 tabular-nums font-black">
-                      <span
-                        className={
-                          enhancedTheme
-                            ? "text-[#025cbc] dark:text-[#60a5fa]"
-                            : "text-[#025cbc] dark:text-[#60a5fa]"
-                        }
-                      >
+                      <span className="text-[#025cbc] dark:text-[#60a5fa]">
                         {m.liters.toFixed(1)} L
                       </span>
                       <span
