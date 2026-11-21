@@ -423,25 +423,25 @@ export default function GaragePage() {
                 ) : (
                   <>
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <div className="relative flex items-center min-w-0 flex-1">
                         {enhancedTheme && (
                           <div
                             style={{
                               WebkitMaskImage:
-                                "linear-gradient(to right, #000 68%, transparent 100%)",
+                                "linear-gradient(to right, #000 52%, transparent 100%)",
                               maskImage:
-                                "linear-gradient(to right, #000 68%, transparent 100%)",
+                                "linear-gradient(to right, #000 52%, transparent 100%)",
                             }}
-                            className="w-24 h-14 flex items-center justify-start shrink-0 [&_img]:!w-full [&_img]:!h-full [&_img]:!max-w-none [&_img]:!object-contain [&_img]:!object-left [&_div]:!w-full [&_div]:!h-full [&_div]:!max-w-none [&_div]:!flex [&_div]:!items-center [&_div]:!justify-start"
+                            className="w-28 h-16 flex items-center justify-start shrink-0 [&_img]:!w-full [&_img]:!h-full [&_img]:!max-w-none [&_img]:!object-cover [&_img]:!object-left [&_div]:!w-full [&_div]:!h-full [&_div]:!max-w-none [&_div]:!flex [&_div]:!items-center [&_div]:!justify-start"
                           >
                             <VehicleAvatar
                               avatarKey={currentCardAvatar}
                               vehicleId={v.id}
-                              className="!w-full !h-full !max-w-none !object-contain !object-left"
+                              className="!w-full !h-full !max-w-none !object-cover !object-left"
                             />
                           </div>
                         )}
-                        <div className="min-w-0 flex-1">
+                        <div className="min-w-0 flex-1 pl-1.5">
                           <div className="text-[11px] font-extrabold text-[var(--text-muted)] truncate">
                             {v.plate || "NO PLATE"} • {v.fuel_type}
                           </div>
