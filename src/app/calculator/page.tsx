@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useApp } from "@/context/AppContext";
 import { useDashboardTheme } from "@/hooks/useDashboardTheme";
 import {
@@ -25,6 +25,13 @@ interface PlaceSuggestion {
   lon: number;
 }
 
+interface Coords {
+  lat: number;
+  lon: number;
+}
+
+const OSM_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+
 function haversineRoadKm(
   lat1: number,
   lon1: number,
@@ -42,6 +49,53 @@ function haversineRoadKm(
       Math.sin(dLon / 2);
   const straightKm = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
   return Number((straightKm * 1.24).toFixed(1));
+}
+
+function latLonToWorldPixel(lat: number, lon: number, zoom: number) {
+  const scale = 256 * Math.pow(2, zoom);
+  const x = ((lon + 180) / 360) * scale;
+  const clampedLat = Math.max(-85.05112878, Math.min(85.05112878, lat));
+  const rad = (clampedLat * Math.PI) / 180;
+  const y =
+    ((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) * scale;
+  return { x, y };
+}
+
+function computeFitZoom(
+  points: Coords[],
+  width: number,
+  height: number,
+): number {
+  if (points.length < 2) return 11;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  let minLon = Infinity;
+  let maxLon = -Infinity;
+
+  for (const pt of points) {
+    if (pt.lat < minLat) minLat = pt.lat;
+    if (pt.lat > maxLat) maxLat = pt.lat;
+    if (pt.lon < minLon) minLon = pt.lon;
+    if (pt.lon > maxLon) maxLon = pt.lon;
+  }
+
+  const latDiff = Math.max(0.015, maxLat - minLat);
+  const lonDiff = Math.max(0.015, maxLon - minLon);
+
+  for (let z = 14; z >= 4; z--) {
+    const p1 = latLonToWorldPixel(maxLat, minLon, z);
+    const p2 = latLonToWorldPixel(minLat, maxLon, z);
+    const spanW = Math.abs(p2.x - p1.x);
+    const spanH = Math.abs(p2.y - p1.y);
+    if (spanW <= width * 0.68 && spanH <= height * 0.62) {
+      return z;
+    }
+  }
+
+  return Math.max(
+    4,
+    Math.min(12, Math.round(8 - Math.log2(Math.max(latDiff, lonDiff)))),
+  );
 }
 
 async function searchPlacesClient(query: string): Promise<PlaceSuggestion[]> {
@@ -138,14 +192,11 @@ async function searchPlacesClient(query: string): Promise<PlaceSuggestion[]> {
 }
 
 export default function TripCalculatorPage() {
-  const { user, activeVehicle, logs } = useApp();
+  const { user, activeVehicle, logs, theme } = useApp();
   const { enhancedTheme } = useDashboardTheme();
 
   const [origin, setOrigin] = useState("");
-  const [originCoords, setOriginCoords] = useState<{
-    lat: number;
-    lon: number;
-  } | null>(null);
+  const [originCoords, setOriginCoords] = useState<Coords | null>(null);
   const [originSuggestions, setOriginSuggestions] = useState<PlaceSuggestion[]>(
     [],
   );
@@ -154,10 +205,7 @@ export default function TripCalculatorPage() {
   const [locatingGps, setLocatingGps] = useState(false);
 
   const [destination, setDestination] = useState("");
-  const [destCoords, setDestCoords] = useState<{
-    lat: number;
-    lon: number;
-  } | null>(null);
+  const [destCoords, setDestCoords] = useState<Coords | null>(null);
   const [destSuggestions, setDestSuggestions] = useState<PlaceSuggestion[]>([]);
   const [showDestDropdown, setShowDestDropdown] = useState(false);
   const [loadingDestSug, setLoadingDestSug] = useState(false);
@@ -167,12 +215,23 @@ export default function TripCalculatorPage() {
   const [roundTrip, setRoundTrip] = useState(false);
 
   const [oneWayKm, setOneWayKm] = useState<number>(0);
+  const [routeLine, setRouteLine] = useState<Coords[]>([]);
+  const [mapPan, setMapPan] = useState<{ x: number; y: number }>({
+    x: 0,
+    y: 0,
+  });
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
   const originWrapRef = useRef<HTMLDivElement | null>(null);
   const destWrapRef = useRef<HTMLDivElement | null>(null);
   const fuelInputRef = useRef<HTMLInputElement | null>(null);
+  const mapDragRef = useRef<{
+    startX: number;
+    startY: number;
+    origX: number;
+    origY: number;
+  } | null>(null);
 
   const vehicleFuelLogs = activeVehicle
     ? [...logs]
@@ -211,6 +270,8 @@ export default function TripCalculatorPage() {
       setIsEditingFuelPrice(false);
       setRoundTrip(false);
       setOneWayKm(0);
+      setRouteLine([]);
+      setMapPan({ x: 0, y: 0 });
       setErrorMsg("");
       return;
     }
@@ -359,6 +420,7 @@ export default function TripCalculatorPage() {
     setErrorMsg("");
     setShowOriginDropdown(false);
     setShowDestDropdown(false);
+    setMapPan({ x: 0, y: 0 });
 
     try {
       let p1 = originCoords;
@@ -382,12 +444,24 @@ export default function TripCalculatorPage() {
       }
 
       try {
-        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${p1.lon},${p1.lat};${p2.lon},${p2.lat}?overview=false`;
+        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${p1.lon},${p1.lat};${p2.lon},${p2.lat}?overview=full&geometries=geojson`;
         const routeRes = await fetch(osrmUrl);
         const routeData = await routeRes.json();
+        const routeObj = routeData?.routes?.[0];
 
-        if (routeData?.routes?.[0]?.distance) {
-          setOneWayKm(Number((routeData.routes[0].distance / 1000).toFixed(1)));
+        if (routeObj?.distance) {
+          setOneWayKm(Number((routeObj.distance / 1000).toFixed(1)));
+          const coords: Coords[] = Array.isArray(
+            routeObj?.geometry?.coordinates,
+          )
+            ? routeObj.geometry.coordinates.map(
+                ([lon, lat]: [number, number]) => ({
+                  lat,
+                  lon,
+                }),
+              )
+            : [p1, p2];
+          setRouteLine(coords);
           setLoading(false);
           return;
         }
@@ -396,6 +470,7 @@ export default function TripCalculatorPage() {
       }
 
       setOneWayKm(haversineRoadKm(p1.lat, p1.lon, p2.lat, p2.lon));
+      setRouteLine([p1, p2]);
     } catch {
       setErrorMsg("Route lookup failed. Please try again.");
     }
@@ -422,6 +497,179 @@ export default function TripCalculatorPage() {
 
   const canEditFuel = isEditingFuelPrice || lastLoggedFuelRate === null;
 
+  const mapViewWidth = 560;
+  const mapViewHeight = 250;
+
+  const mapData = useMemo(() => {
+    const activePoints =
+      routeLine.length >= 2
+        ? routeLine
+        : originCoords && destCoords
+          ? [originCoords, destCoords]
+          : originCoords
+            ? [originCoords]
+            : destCoords
+              ? [destCoords]
+              : [{ lat: 22.0667, lon: 87.9258 }];
+
+    const zoom = computeFitZoom(activePoints, mapViewWidth, mapViewHeight);
+
+    const worldPts = activePoints.map((pt) =>
+      latLonToWorldPixel(pt.lat, pt.lon, zoom),
+    );
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+
+    for (const wp of worldPts) {
+      if (wp.x < minX) minX = wp.x;
+      if (wp.x > maxX) maxX = wp.x;
+      if (wp.y < minY) minY = wp.y;
+      if (wp.y > maxY) maxY = wp.y;
+    }
+
+    const centerWorldX = (minX + maxX) / 2 - mapPan.x;
+    const centerWorldY = (minY + maxY) / 2 - mapPan.y;
+
+    const toScreen = (lat: number, lon: number) => {
+      const wp = latLonToWorldPixel(lat, lon, zoom);
+      return {
+        x: wp.x - centerWorldX + mapViewWidth / 2,
+        y: wp.y - centerWorldY + mapViewHeight / 2,
+      };
+    };
+
+    const startScreen =
+      routeLine.length >= 2
+        ? toScreen(routeLine[0].lat, routeLine[0].lon)
+        : originCoords
+          ? toScreen(originCoords.lat, originCoords.lon)
+          : null;
+
+    const endScreen =
+      routeLine.length >= 2
+        ? toScreen(
+            routeLine[routeLine.length - 1].lat,
+            routeLine[routeLine.length - 1].lon,
+          )
+        : destCoords
+          ? toScreen(destCoords.lat, destCoords.lon)
+          : null;
+
+    const screenPoints =
+      routeLine.length >= 2
+        ? routeLine.map((pt) => toScreen(pt.lat, pt.lon))
+        : startScreen && endScreen
+          ? [startScreen, endScreen]
+          : [];
+
+    const polylinePath =
+      screenPoints.length >= 2
+        ? screenPoints
+            .map(
+              (pt, idx) =>
+                `${idx === 0 ? "M" : "L"} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`,
+            )
+            .join(" ")
+        : "";
+
+    // Slightly offset return leg for Round Trip so outbound and return remain visually distinct
+    const returnPoints =
+      screenPoints.length >= 2 && roundTrip
+        ? [...screenPoints].reverse().map((pt, idx, arr) => {
+            if (idx === 0 || idx === arr.length - 1) return pt;
+            const prev = arr[idx - 1];
+            const next = arr[idx + 1];
+            const dx = next.x - prev.x;
+            const dy = next.y - prev.y;
+            const len = Math.hypot(dx, dy) || 1;
+            const nx = -dy / len;
+            const ny = dx / len;
+            return {
+              x: pt.x + nx * 4.5,
+              y: pt.y + ny * 4.5,
+            };
+          })
+        : [];
+
+    const returnPolylinePath =
+      returnPoints.length >= 2
+        ? returnPoints
+            .map(
+              (pt, idx) =>
+                `${idx === 0 ? "M" : "L"} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`,
+            )
+            .join(" ")
+        : "";
+
+    const tileSize = 256;
+    const numTiles = Math.pow(2, zoom);
+    const topLeftWorldX = centerWorldX - mapViewWidth / 2;
+    const topLeftWorldY = centerWorldY - mapViewHeight / 2;
+
+    const startTileX = Math.floor(topLeftWorldX / tileSize);
+    const endTileX = Math.floor((topLeftWorldX + mapViewWidth) / tileSize);
+    const startTileY = Math.floor(topLeftWorldY / tileSize);
+    const endTileY = Math.floor((topLeftWorldY + mapViewHeight) / tileSize);
+
+    const tiles: {
+      key: string;
+      url: string;
+      left: number;
+      top: number;
+    }[] = [];
+
+    for (let tx = startTileX; tx <= endTileX; tx++) {
+      for (let ty = startTileY; ty <= endTileY; ty++) {
+        if (ty < 0 || ty >= numTiles) continue;
+        const wrappedX = ((tx % numTiles) + numTiles) % numTiles;
+        const url = OSM_TILE_URL.replace("{z}", String(zoom))
+          .replace("{x}", String(wrappedX))
+          .replace("{y}", String(ty));
+
+        tiles.push({
+          key: `${zoom}-${wrappedX}-${ty}`,
+          url,
+          left: tx * tileSize - topLeftWorldX,
+          top: ty * tileSize - topLeftWorldY,
+        });
+      }
+    }
+
+    return {
+      tiles,
+      polylinePath,
+      returnPolylinePath,
+      startScreen,
+      endScreen,
+      hasRoute: screenPoints.length >= 2 && totalDistance > 0,
+    };
+  }, [routeLine, originCoords, destCoords, mapPan, totalDistance, roundTrip]);
+
+  const handleMapPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    mapDragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: mapPan.x,
+      origY: mapPan.y,
+    };
+  };
+
+  const handleMapPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!mapDragRef.current) return;
+    const dx = e.clientX - mapDragRef.current.startX;
+    const dy = e.clientY - mapDragRef.current.startY;
+    setMapPan({
+      x: mapDragRef.current.origX + dx,
+      y: mapDragRef.current.origY + dy,
+    });
+  };
+
+  const handleMapPointerUp = () => {
+    mapDragRef.current = null;
+  };
+
   return (
     <div className="max-w-2xl mx-auto space-y-5">
       <div>
@@ -433,6 +681,193 @@ export default function TripCalculatorPage() {
         </p>
       </div>
 
+      {/* Map & Road Distance Trace on Top */}
+      <div className="funky-card p-5 space-y-3">
+        <div className="flex items-center justify-between gap-2 text-xs font-extrabold">
+          <span className="flex items-center gap-1.5">
+            <Route className="w-4 h-4" /> Route Telemetry Trace
+          </span>
+          <span className="px-2.5 py-0.5 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)] tabular-nums">
+            {roundTrip ? "Round-Trip" : "One-Way"} • {totalDistance.toFixed(1)}{" "}
+            km
+          </span>
+        </div>
+
+        <div
+          onPointerDown={handleMapPointerDown}
+          onPointerMove={handleMapPointerMove}
+          onPointerUp={handleMapPointerUp}
+          onPointerCancel={handleMapPointerUp}
+          className="relative w-full h-56 sm:h-64 rounded-2xl overflow-hidden border border-[var(--border-color)] bg-[var(--accent-secondary)] select-none cursor-grab active:cursor-grabbing touch-none"
+        >
+          <div
+            className={`absolute inset-0 pointer-events-none ${
+              theme === "dark" ? "invert hue-rotate-180 brightness-90" : ""
+            }`}
+          >
+            {mapData.tiles.map((t) => (
+              <img
+                key={t.key}
+                src={t.url}
+                alt=""
+                draggable={false}
+                style={{
+                  transform: `translate3d(${t.left}px, ${t.top}px, 0)`,
+                  width: "256px",
+                  height: "256px",
+                }}
+                className="absolute top-0 left-0 max-w-none"
+              />
+            ))}
+          </div>
+
+          <svg
+            viewBox={`0 0 ${mapViewWidth} ${mapViewHeight}`}
+            className="relative z-10 w-full h-full pointer-events-none"
+          >
+            <defs>
+              <linearGradient
+                id="routeTelemetryGrad"
+                x1="0%"
+                y1="0%"
+                x2="100%"
+                y2="0%"
+              >
+                <stop offset="0%" stopColor="#0e84eb" />
+                <stop offset="40%" stopColor="#6366f1" />
+                <stop offset="72%" stopColor="#10b981" />
+                <stop offset="100%" stopColor="#f59e0b" />
+              </linearGradient>
+            </defs>
+
+            {mapData.returnPolylinePath && (
+              <path
+                d={mapData.returnPolylinePath}
+                fill="none"
+                stroke="#f59e0b"
+                strokeWidth="3"
+                strokeDasharray="6 5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                opacity="0.9"
+              />
+            )}
+
+            {mapData.polylinePath && (
+              <>
+                <path
+                  d={mapData.polylinePath}
+                  fill="none"
+                  stroke={
+                    theme === "dark"
+                      ? "rgba(15, 23, 42, 0.75)"
+                      : "rgba(255, 255, 255, 0.85)"
+                  }
+                  strokeWidth="6.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d={mapData.polylinePath}
+                  fill="none"
+                  stroke={
+                    enhancedTheme ? "url(#routeTelemetryGrad)" : "#0e84eb"
+                  }
+                  strokeWidth="3.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </>
+            )}
+
+            {mapData.startScreen && (
+              <g>
+                <circle
+                  cx={mapData.startScreen.x}
+                  cy={mapData.startScreen.y}
+                  r="6.5"
+                  fill="#0e84eb"
+                  stroke="#ffffff"
+                  strokeWidth="2.2"
+                />
+              </g>
+            )}
+
+            {mapData.endScreen && (
+              <g>
+                <circle
+                  cx={mapData.endScreen.x}
+                  cy={mapData.endScreen.y}
+                  r="6.5"
+                  fill="#f59e0b"
+                  stroke="#ffffff"
+                  strokeWidth="2.2"
+                />
+              </g>
+            )}
+          </svg>
+
+          {mapData.hasRoute && (
+            <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1.5 flex-wrap pointer-events-none">
+              <div className="px-2.5 py-1 rounded-full text-[11px] font-black tabular-nums backdrop-blur-md bg-white/85 dark:bg-slate-900/85 text-slate-900 dark:text-white border border-black/10 dark:border-white/15 shadow-sm">
+                {totalDistance.toFixed(1)} km road distance
+              </div>
+              {roundTrip && (
+                <div className="px-2 py-1 rounded-full text-[10px] font-extrabold backdrop-blur-md bg-amber-500/20 dark:bg-amber-500/25 text-amber-900 dark:text-amber-200 border border-amber-500/40 shadow-sm">
+                  Outbound + Return
+                </div>
+              )}
+            </div>
+          )}
+
+          {(mapPan.x !== 0 || mapPan.y !== 0) && (
+            <button
+              type="button"
+              onClick={() => setMapPan({ x: 0, y: 0 })}
+              className="absolute top-2.5 right-2.5 z-20 px-2.5 py-1 rounded-full text-[10px] font-extrabold backdrop-blur-md bg-white/85 dark:bg-slate-900/85 text-slate-900 dark:text-white border border-black/10 dark:border-white/15 cursor-pointer"
+            >
+              Center Route
+            </button>
+          )}
+        </div>
+
+        <div className="flex justify-between text-[11px] font-extrabold text-[var(--text-muted)]">
+          <span>START: {origin.trim() ? origin.split(",")[0] : "—"}</span>
+          <span>
+            END: {destination.trim() ? destination.split(",")[0] : "—"}
+          </span>
+        </div>
+      </div>
+
+      {/* Summary Metrics Below Map */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="funky-card p-4 text-center space-y-1">
+          <div className="text-[11px] font-bold text-[var(--text-muted)]">
+            Distance
+          </div>
+          <div className="text-xl font-black tabular-nums">
+            {totalDistance.toFixed(1)} km
+          </div>
+        </div>
+        <div className="funky-card p-4 text-center space-y-1">
+          <div className="text-[11px] font-bold text-[var(--text-muted)] flex items-center justify-center gap-1">
+            <Fuel className="w-3 h-3" /> Fuel
+          </div>
+          <div className="text-xl font-black tabular-nums">
+            {fuelNeeded.toFixed(1)} L
+          </div>
+        </div>
+        <div className="funky-card p-4 text-center space-y-1">
+          <div className="text-[11px] font-bold text-[var(--text-muted)]">
+            Est. Cost
+          </div>
+          <div className="text-xl font-black tabular-nums">
+            ₹{Math.round(estimatedCost).toLocaleString()}
+          </div>
+        </div>
+      </div>
+
+      {/* Calculator Form Below */}
       <form onSubmit={calculateRoute} className="funky-card p-6 space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div ref={originWrapRef} className="relative">
@@ -684,90 +1119,6 @@ export default function TripCalculatorPage() {
           </a>
         </div>
       </form>
-
-      <div className="grid grid-cols-3 gap-3">
-        <div className="funky-card p-4 text-center space-y-1">
-          <div className="text-[11px] font-bold text-[var(--text-muted)]">
-            Distance
-          </div>
-          <div className="text-xl font-black tabular-nums">
-            {totalDistance.toFixed(1)} km
-          </div>
-        </div>
-        <div className="funky-card p-4 text-center space-y-1">
-          <div className="text-[11px] font-bold text-[var(--text-muted)] flex items-center justify-center gap-1">
-            <Fuel className="w-3 h-3" /> Fuel
-          </div>
-          <div className="text-xl font-black tabular-nums">
-            {fuelNeeded.toFixed(1)} L
-          </div>
-        </div>
-        <div className="funky-card p-4 text-center space-y-1">
-          <div className="text-[11px] font-bold text-[var(--text-muted)]">
-            Est. Cost
-          </div>
-          <div className="text-xl font-black tabular-nums">
-            ₹{Math.round(estimatedCost).toLocaleString()}
-          </div>
-        </div>
-      </div>
-
-      <div className="funky-card p-5 space-y-3">
-        <div className="flex items-center justify-between text-xs font-extrabold">
-          <span className="flex items-center gap-1.5">
-            <Route className="w-4 h-4" /> Route Telemetry Trace
-          </span>
-          <span className="px-2.5 py-0.5 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)]">
-            {roundTrip ? "Round-Trip" : "One-Way"} • {totalDistance.toFixed(0)}{" "}
-            km
-          </span>
-        </div>
-
-        <svg viewBox="0 0 400 90" className="w-full h-24">
-          <defs>
-            <linearGradient
-              id="routeTelemetryGrad"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="0%"
-            >
-              <stop offset="0%" stopColor="#0e84eb" />
-              <stop offset="40%" stopColor="#6366f1" />
-              <stop offset="72%" stopColor="#10b981" />
-              <stop offset="100%" stopColor="#f59e0b" />
-            </linearGradient>
-          </defs>
-          <path
-            d="M 25 68 Q 120 55, 200 42 T 375 22"
-            fill="none"
-            stroke={enhancedTheme ? "url(#routeTelemetryGrad)" : "currentColor"}
-            strokeWidth="3.5"
-            strokeLinecap="round"
-          />
-          <circle
-            cx="25"
-            cy="68"
-            r="6"
-            fill={enhancedTheme ? "#0e84eb" : "currentColor"}
-          />
-          <circle
-            cx="375"
-            cy="22"
-            r="6"
-            fill="var(--bg-main)"
-            stroke={enhancedTheme ? "#f59e0b" : "currentColor"}
-            strokeWidth="3"
-          />
-        </svg>
-
-        <div className="flex justify-between text-[11px] font-extrabold text-[var(--text-muted)]">
-          <span>START: {origin.trim() ? origin.split(",")[0] : "—"}</span>
-          <span>
-            END: {destination.trim() ? destination.split(",")[0] : "—"}
-          </span>
-        </div>
-      </div>
     </div>
   );
 }

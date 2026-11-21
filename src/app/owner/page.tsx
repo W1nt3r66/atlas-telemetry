@@ -224,7 +224,7 @@ export default function OwnerPage() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold">Home City / Hub</label>
+              <label className="text-xs font-bold">Base</label>
               <input
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
