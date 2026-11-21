@@ -14,6 +14,7 @@ export default function Icon() {
         width: "100%",
         height: "100%",
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
         position: "relative",
@@ -54,68 +55,46 @@ export default function Icon() {
         }}
       />
 
-      {/* ~70% Coverage 2/3-Circle Translucent Liquid-Glass Arc, Needle & ATLAS */}
+      {/* ~70% Coverage 2/3-Circle Arc & Needle */}
       <svg
-        width="45"
-        height="45"
-        viewBox="0 0 36 36"
+        width="40"
+        height="32"
+        viewBox="0 0 36 28"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         style={{ position: "relative", zIndex: 10 }}
       >
-        <defs>
-          <linearGradient
-            id="faviconArc"
-            x1="7.43"
-            y1="5.3"
-            x2="28.57"
-            y2="23.6"
-            gradientUnits="userSpaceOnUse"
-          >
-            <stop offset="0%" stopColor="rgba(255, 255, 255, 0.84)" />
-            <stop offset="50%" stopColor="rgba(255, 255, 255, 0.36)" />
-            <stop offset="100%" stopColor="rgba(255, 255, 255, 0.68)" />
-          </linearGradient>
-
-          <linearGradient
-            id="faviconNeedle"
-            x1="18"
-            y1="17.5"
-            x2="25.9"
-            y2="10.4"
-            gradientUnits="userSpaceOnUse"
-          >
-            <stop offset="0%" stopColor="rgba(255, 255, 255, 0.46)" />
-            <stop offset="100%" stopColor="rgba(255, 255, 255, 0.9)" />
-          </linearGradient>
-        </defs>
-
         <path
-          d="M7.43 23.6A12.2 12.2 0 1 1 28.57 23.6"
-          stroke="url(#faviconArc)"
+          d="M6.5 22.5A12.5 12.5 0 1 1 29.5 22.5"
+          stroke="#ffffff"
+          strokeOpacity="0.88"
           strokeWidth="3.6"
           strokeLinecap="round"
         />
-
         <path
-          d="M18 17.5L25.9 10.4"
-          stroke="url(#faviconNeedle)"
+          d="M18 17.5L25.5 10.5"
+          stroke="#ffffff"
+          strokeOpacity="0.95"
           strokeWidth="3.6"
           strokeLinecap="round"
         />
-
-        <text
-          x="18"
-          y="29.2"
-          textAnchor="middle"
-          fill="rgba(255, 255, 255, 0.8)"
-          fontSize="4.5"
-          fontWeight="800"
-          letterSpacing="0.55"
-        >
-          ATLAS
-        </text>
       </svg>
+
+      {/* ATLAS Label */}
+      <div
+        style={{
+          position: "relative",
+          zIndex: 10,
+          marginTop: "-2px",
+          fontSize: "9px",
+          fontWeight: 800,
+          letterSpacing: "0.08em",
+          color: "rgba(255, 255, 255, 0.88)",
+          lineHeight: 1,
+        }}
+      >
+        ATLAS
+      </div>
     </div>,
     { ...size },
   );
