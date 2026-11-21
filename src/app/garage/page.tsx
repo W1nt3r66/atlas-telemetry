@@ -79,6 +79,7 @@ export default function GaragePage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editPlate, setEditPlate] = useState("");
+  const [editYear, setEditYear] = useState("");
   const [editWheelerType, setEditWheelerType] =
     useState<WheelerType>("4-Wheeler");
   const [editServiceInterval, setEditServiceInterval] = useState("10000");
@@ -229,6 +230,7 @@ export default function GaragePage() {
     setEditingId(v.id);
     setEditName(v.name);
     setEditPlate(v.plate);
+    setEditYear(v.year !== undefined && v.year !== null ? String(v.year) : "");
     setEditWheelerType(vWheeler);
     setEditServiceInterval(String(v.service_interval_km || 10000));
     setEditAvatar(resolveVehicleAvatar(v));
@@ -242,9 +244,20 @@ export default function GaragePage() {
     setEditError("");
     const cleanName = editName.trim();
     const cleanPlate = editPlate.replace(/[\s-]/g, "").toUpperCase();
+    const parsedYear = Number(editYear);
 
-    if (!cleanName || !cleanPlate || !editServiceInterval.trim()) {
-      setEditError("Name, plate, and service interval are required.");
+    if (
+      !cleanName ||
+      !cleanPlate ||
+      !editYear.trim() ||
+      Number.isNaN(parsedYear) ||
+      parsedYear < 1980 ||
+      parsedYear > 2030 ||
+      !editServiceInterval.trim()
+    ) {
+      setEditError(
+        "Name, plate, valid year (1980–2030), and service interval are required.",
+      );
       return;
     }
 
@@ -259,6 +272,7 @@ export default function GaragePage() {
       await updateVehicle(id, {
         name: cleanName,
         plate: cleanPlate,
+        year: parsedYear,
         wheeler_type: editWheelerType,
         service_interval_km: Number(editServiceInterval),
         insurance_expiry: editInsuranceExpiry || "",
@@ -270,6 +284,7 @@ export default function GaragePage() {
       updateVehicle(id, {
         name: cleanName,
         plate: cleanPlate,
+        year: parsedYear,
         wheeler_type: editWheelerType,
         service_interval_km: Number(editServiceInterval),
         insurance_expiry: editInsuranceExpiry || "",
@@ -280,7 +295,7 @@ export default function GaragePage() {
 
     setEditingId(null);
     setAvatarTick((n) => n + 1);
-    triggerToast("Vehicle, avatar & renewal dates saved!");
+    triggerToast("Vehicle modded, run from RTO!");
   };
 
   const inputClass =
@@ -390,20 +405,31 @@ export default function GaragePage() {
                         />
                       </div>
                       <div>
-                        <label className="text-[11px] font-bold">
-                          Service (km)
-                        </label>
+                        <label className="text-[11px] font-bold">Year</label>
                         <input
                           required
                           type="number"
-                          value={editServiceInterval}
-                          onChange={(e) =>
-                            setEditServiceInterval(e.target.value)
-                          }
-                          placeholder="10000"
+                          min="1980"
+                          max="2030"
+                          value={editYear}
+                          onChange={(e) => setEditYear(e.target.value)}
+                          placeholder="2025"
                           className={inputClass}
                         />
                       </div>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold">
+                        Service (km)
+                      </label>
+                      <input
+                        required
+                        type="number"
+                        value={editServiceInterval}
+                        onChange={(e) => setEditServiceInterval(e.target.value)}
+                        placeholder="10000"
+                        className={inputClass}
+                      />
                     </div>
 
                     <div>
@@ -613,7 +639,7 @@ export default function GaragePage() {
             <Plus className="w-4 h-4" /> Add New Vehicle
           </h2>
           <span className="text-[11px] font-bold text-[var(--text-muted)]">
-            * Required fields
+            - Required fields
           </span>
         </div>
 

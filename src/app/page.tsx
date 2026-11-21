@@ -415,6 +415,8 @@ export default function DashboardPage() {
   const latestLog = vLogs[0] || null;
   const vehicleAvatarKey =
     (activeVehicle as { avatar?: string | null } | null)?.avatar || null;
+  const vehicleYear =
+    (activeVehicle as { year?: number | string | null } | null)?.year || null;
 
   return (
     <div className="w-full max-w-full overflow-x-hidden">
@@ -514,28 +516,28 @@ export default function DashboardPage() {
                   }
                 : undefined
             }
-            className="funky-card pt-6 pb-3.5 px-5 sm:pt-7 sm:pb-4 sm:px-6 min-h-[128px] sm:min-h-[140px] relative overflow-hidden flex items-start max-w-full"
+            className="funky-card py-4 px-5 sm:py-4.5 sm:px-6 min-h-[124px] sm:min-h-[132px] relative overflow-hidden flex items-stretch max-w-full"
           >
             {enhancedTheme && activeVehicle && (
               <div
                 style={{
                   WebkitMaskImage:
-                    "linear-gradient(to right, #000 0%, #000 50%, rgba(0, 0, 0, 0.42) 76%, transparent 100%)",
+                    "linear-gradient(to right, #000 0%, #000 54%, rgba(0, 0, 0, 0.42) 78%, transparent 100%)",
                   maskImage:
-                    "linear-gradient(to right, #000 0%, #000 50%, rgba(0, 0, 0, 0.42) 76%, transparent 100%)",
+                    "linear-gradient(to right, #000 0%, #000 54%, rgba(0, 0, 0, 0.42) 78%, transparent 100%)",
                 }}
-                className="pointer-events-none select-none absolute top-0 bottom-8 left-[42%] sm:left-[46%] right-0 sm:right-1 flex items-center justify-end z-0 [&_img]:!w-full [&_img]:!h-full [&_img]:!scale-[1.32] [&_img]:!origin-right [&_img]:!object-contain [&_img]:!object-right [&_div]:!w-full [&_div]:!h-full [&_div]:!flex [&_div]:!items-center [&_div]:!justify-end"
+                className="pointer-events-none select-none absolute top-4 bottom-0 left-[46%] sm:left-[50%] right-0 flex items-end justify-end z-0 [&_div]:!w-full [&_div]:!h-full [&_div]:!max-w-none [&_div]:!max-h-none [&_div]:!flex [&_div]:!items-end [&_div]:!justify-end [&_img]:!w-full [&_img]:!h-full [&_img]:!max-w-none [&_img]:!max-h-none [&_img]:!scale-[1.49] sm:[&_img]:!scale-[1.60] [&_img]:!translate-y-11 sm:[&_img]:!translate-y-12 [&_img]:!origin-bottom-right [&_img]:!object-contain [&_img]:!object-right-bottom"
               >
                 <VehicleAvatar
                   avatarKey={vehicleAvatarKey}
                   vehicleId={activeVehicle.id}
-                  className="w-full h-full scale-[1.32] origin-right object-contain object-right"
+                  className="w-full h-full scale-[1.49] sm:scale-[1.60] translate-y-11 sm:translate-y-12 origin-bottom-right object-contain object-right-bottom"
                 />
               </div>
             )}
 
-            <div className="relative z-10 w-full flex flex-col justify-between gap-2">
-              <div className="w-full flex items-end justify-between gap-3">
+            <div className="relative z-10 w-full flex flex-col justify-between gap-1">
+              <div className="w-full flex items-start justify-between gap-3">
                 <div className="space-y-1 min-w-0 flex-1 pr-2">
                   <div
                     className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold max-w-full border ${
@@ -577,7 +579,9 @@ export default function DashboardPage() {
 
               <p className="text-xs font-semibold text-[var(--text-muted)] truncate pr-28 sm:pr-40">
                 {activeVehicle
-                  ? activeVehicle.manufacturer
+                  ? vehicleYear
+                    ? `${activeVehicle.manufacturer} • ${vehicleYear}`
+                    : activeVehicle.manufacturer
                   : "Add a vehicle in Garage to begin"}
               </p>
             </div>
@@ -779,7 +783,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="text-xs font-semibold text-[var(--text-muted)] truncate">
                     {lastMonthSpend > 0
-                      ? `vs ₹${Math.round(lastMonthSpend).toLocaleString()} last mo`
+                      ? `vs ₹${Math.round(lastMonthSpend).toLocaleString()} last`
                       : "Fuel & care"}
                   </div>
                 </div>
@@ -1102,7 +1106,7 @@ export default function DashboardPage() {
                   <ShieldCheck
                     className={`w-4 h-4 ${
                       enhancedTheme
-                        ? "text-emerald-600 dark:text-emerald-400"
+                        ? "text-[#15803d] dark:text-emerald-400"
                         : "text-[#025cbc] dark:text-[#3898ec]"
                     }`}
                   />
@@ -1121,10 +1125,10 @@ export default function DashboardPage() {
                   const badgeClass = !info
                     ? "bg-[var(--accent-secondary)] text-[var(--text-muted)] border-[var(--border-color)]"
                     : info.tone === "danger"
-                      ? "bg-red-500/15 text-red-500 border-red-400/40"
+                      ? "bg-red-500/20 text-[#b91c1c] dark:text-red-300 border-red-500/45"
                       : info.tone === "warning"
-                        ? "bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-400/40"
-                        : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-400/40";
+                        ? "bg-amber-500/20 text-[#92400e] dark:text-amber-300 border-amber-500/45"
+                        : "bg-[#15803d]/15 text-[#14532d] dark:text-emerald-300 border-[#15803d]/40";
 
                   return (
                     <Link
