@@ -428,14 +428,14 @@ export default function Navbar() {
         </div>
       )}
 
-      {/* Floating Add Entry Button on All Logged-In Pages */}
+      {/* Floating Add Entry Button Positioned Above Bottom Dock on Mobile */}
       {user && (
         <button
           type="button"
           onClick={() => setIsAddOpen(true)}
           aria-label="Add Entry"
           title="Add Entry"
-          className="funky-btn-primary fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 w-12 h-12 rounded-full flex items-center justify-center shadow-xl cursor-pointer transition-transform hover:scale-105 active:scale-95"
+          className="funky-btn-primary fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-50 w-12 h-12 rounded-full flex items-center justify-center shadow-xl cursor-pointer transition-transform hover:scale-105 active:scale-95"
         >
           <Plus className="w-5 h-5 stroke-[2.75]" />
         </button>
