@@ -194,14 +194,14 @@ export default function Navbar() {
                 type="button"
                 onClick={() => setIsAddOpen(true)}
                 title="Add Entry"
-                className="funky-btn-primary p-2 sm:px-3.5 sm:py-2 rounded-full font-extrabold text-xs flex items-center gap-1 cursor-pointer"
+                className="funky-btn-primary p-2 sm:px-3.5 sm:py-2 rounded-full font-extrabold text-xs flex items-center gap-1 cursor-pointer whitespace-nowrap"
               >
                 <Plus className="w-4 h-4 stroke-[2.5]" />
                 <span className="hidden sm:inline">Add</span>
               </button>
             )}
 
-            {/* Theme Button -> Dark/Light & Classic/Color UI */}
+            {/* Theme Button -> Dark/Light & Hard/Soft Compound */}
             <div className="relative" ref={themeMenuRef}>
               <button
                 type="button"
@@ -211,7 +211,7 @@ export default function Navbar() {
                 }}
                 aria-expanded={isThemeOpen}
                 title="Theme Settings"
-                className="funky-btn p-2 sm:px-3 sm:py-2 rounded-full bg-[var(--accent-secondary)] font-extrabold text-xs flex items-center gap-1.5 cursor-pointer"
+                className="funky-btn p-2 sm:px-3 sm:py-2 rounded-full bg-[var(--accent-secondary)] font-extrabold text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
               >
                 {theme === "light" ? (
                   <Sun className="w-4 h-4 text-amber-500" />
@@ -248,13 +248,13 @@ export default function Navbar() {
                         onClick={() => {
                           if (theme !== "light") toggleTheme();
                         }}
-                        className={`py-2 px-2.5 rounded-xl font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                        className={`py-2 px-2.5 rounded-xl font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
                           theme === "light"
                             ? "funky-btn-primary"
                             : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
                         }`}
                       >
-                        <Sun className="w-3.5 h-3.5" />
+                        <Sun className="w-3.5 h-3.5 shrink-0" />
                         <span>Light</span>
                       </button>
                       <button
@@ -262,47 +262,47 @@ export default function Navbar() {
                         onClick={() => {
                           if (theme !== "dark") toggleTheme();
                         }}
-                        className={`py-2 px-2.5 rounded-xl font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                        className={`py-2 px-2.5 rounded-xl font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
                           theme === "dark"
                             ? "funky-btn-primary"
                             : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
                         }`}
                       >
-                        <Moon className="w-3.5 h-3.5" />
+                        <Moon className="w-3.5 h-3.5 shrink-0" />
                         <span>Dark</span>
                       </button>
                     </div>
                   </div>
 
-                  {/* Color UI / Classic UI Toggle */}
+                  {/* F1 Compound Style: Hard (Color UI) / Soft (Frosted Classic UI) */}
                   <div className="space-y-1.5">
                     <div className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
-                      UI Style
+                      Compound
                     </div>
                     <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-subtle)]">
                       <button
                         type="button"
                         onClick={() => setThemeMode(true)}
-                        className={`py-2 px-2.5 rounded-xl font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                        className={`py-2 px-2.5 rounded-xl font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
                           enhancedTheme
                             ? "funky-btn-primary"
                             : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
                         }`}
                       >
-                        <Palette className="w-3.5 h-3.5" />
-                        <span>Color UI</span>
+                        <Palette className="w-3.5 h-3.5 shrink-0" />
+                        <span>Hard</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => setThemeMode(false)}
-                        className={`py-2 px-2.5 rounded-xl font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                        className={`py-2 px-2.5 rounded-xl font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
                           !enhancedTheme
                             ? "funky-btn-primary"
                             : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
                         }`}
                       >
-                        <Layers className="w-3.5 h-3.5" />
-                        <span>Classic UI</span>
+                        <Layers className="w-3.5 h-3.5 shrink-0" />
+                        <span>Soft</span>
                       </button>
                     </div>
                   </div>
@@ -379,7 +379,7 @@ export default function Navbar() {
                 type="button"
                 onClick={signOut}
                 title={`Sign Out (${user.email})`}
-                className={`px-3 py-2 rounded-full font-extrabold text-xs flex items-center gap-1.5 cursor-pointer transition border ${
+                className={`px-3 py-2 rounded-full font-extrabold text-xs flex items-center gap-1.5 cursor-pointer transition border whitespace-nowrap ${
                   enhancedTheme
                     ? "bg-rose-500/15 hover:bg-rose-500/25 text-rose-600 dark:text-rose-400 border-rose-400/40"
                     : "funky-btn bg-[var(--accent-secondary)]"
@@ -392,7 +392,7 @@ export default function Navbar() {
               <button
                 type="button"
                 onClick={signInWithGoogle}
-                className="funky-btn-primary px-3.5 py-2 rounded-full font-extrabold text-xs cursor-pointer"
+                className="funky-btn-primary px-3.5 py-2 rounded-full font-extrabold text-xs cursor-pointer whitespace-nowrap"
               >
                 Sign in with Google
               </button>
