@@ -11,6 +11,7 @@ import {
   Camera,
   Image as ImageIcon,
   Loader2,
+  ChevronDown,
 } from "lucide-react";
 
 interface Props {
@@ -411,36 +412,48 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
             <div className="grid grid-cols-2 gap-3">
               {entryType === "expense" && (
                 <div className="min-w-0">
-                  <label className="block text-xs font-bold">
-                    Sub-Category
-                  </label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className={inputClass}
-                  >
-                    <option value="Accessories" className="bg-[var(--bg-main)]">
-                      Accessories
-                    </option>
-                    <option value="Insurance" className="bg-[var(--bg-main)]">
-                      Insurance
-                    </option>
-                    <option
-                      value="Toll / FASTag"
-                      className="bg-[var(--bg-main)]"
+                  <div className="flex items-center justify-between gap-1">
+                    <label className="block text-xs font-bold">
+                      Sub-Category
+                    </label>
+                    <span className="text-[10px] font-extrabold text-[#025cbc] dark:text-[#3898ec]">
+                      6 options
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <select
+                      aria-label="Sub-Category"
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      className={`${inputClass} pr-9 cursor-pointer`}
                     >
-                      Toll / FASTag
-                    </option>
-                    <option value="Parking" className="bg-[var(--bg-main)]">
-                      Parking
-                    </option>
-                    <option value="Repair" className="bg-[var(--bg-main)]">
-                      Repair
-                    </option>
-                    <option value="Other" className="bg-[var(--bg-main)]">
-                      Other
-                    </option>
-                  </select>
+                      <option
+                        value="Accessories"
+                        className="bg-[var(--bg-main)]"
+                      >
+                        Accessories
+                      </option>
+                      <option value="Insurance" className="bg-[var(--bg-main)]">
+                        Insurance
+                      </option>
+                      <option
+                        value="Toll / FASTag"
+                        className="bg-[var(--bg-main)]"
+                      >
+                        Toll / FASTag
+                      </option>
+                      <option value="Parking" className="bg-[var(--bg-main)]">
+                        Parking
+                      </option>
+                      <option value="Repair" className="bg-[var(--bg-main)]">
+                        Repair
+                      </option>
+                      <option value="Other" className="bg-[var(--bg-main)]">
+                        Other
+                      </option>
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-[var(--text-muted)] pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" />
+                  </div>
                 </div>
               )}
               <div

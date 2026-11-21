@@ -2,7 +2,17 @@
 
 import React, { useState, useEffect } from "react";
 import { useApp } from "@/context/AppContext";
-import { CheckCircle2, Trash2, ShieldCheck } from "lucide-react";
+import {
+  CheckCircle2,
+  Trash2,
+  ShieldCheck,
+  Pencil,
+  X,
+  User,
+  Mail,
+  Phone,
+  MapPin,
+} from "lucide-react";
 
 export default function OwnerPage() {
   const { user, owner, updateOwner, deleteAccount } = useApp();
@@ -13,11 +23,29 @@ export default function OwnerPage() {
   const [city, setCity] = useState(owner.city || "");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  const hasSavedDetails = Boolean(
+    (owner.fullName && owner.fullName.trim()) ||
+    (owner.phone && owner.phone.trim()) ||
+    (owner.city && owner.city.trim()),
+  );
+
+  const [isEditing, setIsEditing] = useState<boolean>(!hasSavedDetails);
+
   useEffect(() => {
-    setFullName(owner.fullName || "");
-    setEmail(owner.email || user?.email || "");
-    setPhone(owner.phone || "");
-    setCity(owner.city || "");
+    const nextName = owner.fullName || "";
+    const nextEmail = owner.email || user?.email || "";
+    const nextPhone = owner.phone || "";
+    const nextCity = owner.city || "";
+
+    setFullName(nextName);
+    setEmail(nextEmail);
+    setPhone(nextPhone);
+    setCity(nextCity);
+
+    const anySaved = Boolean(
+      nextName.trim() || nextPhone.trim() || nextCity.trim(),
+    );
+    setIsEditing(!anySaved);
   }, [owner, user]);
 
   const triggerToast = (msg: string) => {
@@ -33,7 +61,16 @@ export default function OwnerPage() {
       phone: phone.trim(),
       city: city.trim(),
     });
+    setIsEditing(false);
     triggerToast("Owner profile saved!");
+  };
+
+  const handleCancelEdit = () => {
+    setFullName(owner.fullName || "");
+    setEmail(owner.email || user?.email || "");
+    setPhone(owner.phone || "");
+    setCity(owner.city || "");
+    setIsEditing(false);
   };
 
   const handleDeleteAccount = async () => {
@@ -46,6 +83,8 @@ export default function OwnerPage() {
 
   const inputClass =
     "w-full mt-1.5 px-3.5 py-2.5 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-input)] text-[var(--text-main)] text-[16px] sm:text-sm font-medium focus:outline-none";
+
+  const displayEmail = owner.email || user?.email || "—";
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-24">
@@ -83,60 +122,126 @@ export default function OwnerPage() {
         </span>
       </div>
 
-      <form onSubmit={handleSaveProfile} className="funky-card p-6 space-y-4">
-        <h2 className="font-black text-base">Driver Details</h2>
+      {!isEditing && hasSavedDetails ? (
+        <div className="funky-card p-6 space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <h2 className="font-black text-base">Driver Details</h2>
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border border-emerald-400/40">
+                <CheckCircle2 className="w-3 h-3" /> Saved
+              </span>
+            </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs font-bold">Full Name</label>
-            <input
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Enter full name"
-              className={inputClass}
-            />
+            <button
+              type="button"
+              onClick={() => setIsEditing(true)}
+              className="funky-btn px-3.5 py-1.5 rounded-full bg-[var(--accent-secondary)] text-xs font-extrabold inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              <span>Edit</span>
+            </button>
           </div>
-          <div>
-            <label className="text-xs font-bold">Email Address</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter email address"
-              className={inputClass}
-            />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="p-3.5 rounded-2xl bg-[var(--accent-secondary)]/75 border border-[var(--border-color)] space-y-1">
+              <div className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5">
+                <User className="w-3 h-3" /> Full Name
+              </div>
+              <div className="text-sm font-black">{owner.fullName || "—"}</div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-[var(--accent-secondary)]/75 border border-[var(--border-color)] space-y-1">
+              <div className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5">
+                <Mail className="w-3 h-3" /> Email Address
+              </div>
+              <div className="text-sm font-black break-all">{displayEmail}</div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-[var(--accent-secondary)]/75 border border-[var(--border-color)] space-y-1">
+              <div className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5">
+                <Phone className="w-3 h-3" /> Phone Number
+              </div>
+              <div className="text-sm font-black tabular-nums">
+                {owner.phone || "—"}
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-[var(--accent-secondary)]/75 border border-[var(--border-color)] space-y-1">
+              <div className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5">
+                <MapPin className="w-3 h-3" /> Home City / Hub
+              </div>
+              <div className="text-sm font-black">{owner.city || "—"}</div>
+            </div>
           </div>
         </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs font-bold">Phone Number</label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="Enter phone number"
-              className={inputClass}
-            />
+      ) : (
+        <form onSubmit={handleSaveProfile} className="funky-card p-6 space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-black text-base">Driver Details</h2>
+            {hasSavedDetails && (
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="funky-btn px-3 py-1.5 rounded-full bg-[var(--accent-secondary)] text-xs font-extrabold inline-flex items-center gap-1 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Cancel</span>
+              </button>
+            )}
           </div>
-          <div>
-            <label className="text-xs font-bold">Home City / Hub</label>
-            <input
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              placeholder="Enter city name"
-              className={inputClass}
-            />
-          </div>
-        </div>
 
-        <button
-          type="submit"
-          className="funky-btn-primary px-6 py-3 rounded-full font-black text-xs cursor-pointer"
-        >
-          Save Profile
-        </button>
-      </form>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-bold">Full Name</label>
+              <input
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Enter full name"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold">Email Address</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter email address"
+                className={inputClass}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-bold">Phone Number</label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Enter phone number"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold">Home City / Hub</label>
+              <input
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="Enter city name"
+                className={inputClass}
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            className="funky-btn-primary px-6 py-3 rounded-full font-black text-xs cursor-pointer"
+          >
+            Save Profile
+          </button>
+        </form>
+      )}
 
       <div className="funky-card p-6 space-y-3 border-red-400/30">
         <h2 className="font-black text-sm text-red-500">Danger Zone</h2>

@@ -14,6 +14,7 @@ import {
   X,
   ChevronDown,
   ListFilter,
+  Calendar,
 } from "lucide-react";
 
 type FilterTab = "all" | "fuel" | "expense" | "service" | "wash";
@@ -51,7 +52,7 @@ const CATEGORY_THEME: Record<
     badgeBg: "rgba(14, 132, 235, 0.16)",
     badgeText: "#025cbc",
     badgeBorder: "rgba(14, 132, 235, 0.42)",
-    cardTint: "rgba(14, 132, 235, 0.05)",
+    cardTint: "rgba(14, 132, 235, 0.06)",
   },
   expense: {
     label: "Parts & Accessories",
@@ -67,7 +68,7 @@ const CATEGORY_THEME: Record<
     badgeBg: "rgba(99, 102, 241, 0.16)",
     badgeText: "#4338ca",
     badgeBorder: "rgba(99, 102, 241, 0.42)",
-    cardTint: "rgba(99, 102, 241, 0.05)",
+    cardTint: "rgba(99, 102, 241, 0.06)",
   },
   service: {
     label: "Service",
@@ -83,7 +84,7 @@ const CATEGORY_THEME: Record<
     badgeBg: "rgba(16, 185, 129, 0.16)",
     badgeText: "#047857",
     badgeBorder: "rgba(16, 185, 129, 0.42)",
-    cardTint: "rgba(16, 185, 129, 0.05)",
+    cardTint: "rgba(16, 185, 129, 0.06)",
   },
   wash: {
     label: "Wash & Care",
@@ -99,9 +100,22 @@ const CATEGORY_THEME: Record<
     badgeBg: "rgba(245, 158, 11, 0.18)",
     badgeText: "#b45309",
     badgeBorder: "rgba(245, 158, 11, 0.45)",
-    cardTint: "rgba(245, 158, 11, 0.05)",
+    cardTint: "rgba(245, 158, 11, 0.06)",
   },
 };
+
+function buildSmoothPath(points: { x: number; y: number }[]): string {
+  if (points.length === 0) return "";
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+  let d = `M ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i];
+    const p1 = points[i + 1];
+    const midX = ((p0.x + p1.x) / 2).toFixed(2);
+    d += ` C ${midX} ${p0.y.toFixed(2)}, ${midX} ${p1.y.toFixed(2)}, ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`;
+  }
+  return d;
+}
 
 function LogsContent() {
   const searchParams = useSearchParams();
@@ -109,6 +123,7 @@ function LogsContent() {
   const { enhancedTheme } = useDashboardTheme();
   const [filterType, setFilterType] = useState<FilterTab>("all");
   const [activeSliceIdx, setActiveSliceIdx] = useState<number | null>(null);
+  const [isYearGraphOpen, setIsYearGraphOpen] = useState(false);
 
   const [isLogsSectionOpen, setIsLogsSectionOpen] = useState(true);
   const [expandedLogIds, setExpandedLogIds] = useState<Record<string, boolean>>(
@@ -160,6 +175,18 @@ function LogsContent() {
     if (type === "expense") return "#a5b4fc";
     if (type === "service") return "#6ee7b7";
     return "#fcd34d";
+  };
+
+  const getHardMileageColor = (kmpl: number) => {
+    if (kmpl >= 20) return "#10b981";
+    if (kmpl >= 16) return "#0e84eb";
+    return "#f59e0b";
+  };
+
+  const getHardMileageTextClass = (kmpl: number) => {
+    if (kmpl >= 20) return "text-emerald-600 dark:text-emerald-400";
+    if (kmpl >= 16) return "text-[#025cbc] dark:text-[#60a5fa]";
+    return "text-amber-600 dark:text-amber-400";
   };
 
   useEffect(() => {
@@ -240,7 +267,7 @@ function LogsContent() {
     await deleteLog(id);
   };
 
-  const comboPoints = [...vehicleLogs]
+  const allFuelFillups = [...vehicleLogs]
     .filter(
       (l) =>
         l.type === "fuel" &&
@@ -251,8 +278,49 @@ function LogsContent() {
       const dateCmp = String(a.date || "").localeCompare(String(b.date || ""));
       if (dateCmp !== 0) return dateCmp;
       return Number(a.odo_reading || 0) - Number(b.odo_reading || 0);
-    })
-    .slice(-8);
+    });
+
+  // Last 6 fillups for the combo graph
+  const comboPoints = allFuelFillups.slice(-6);
+
+  // Last 12 months data for the Year popup
+  const nowDate = new Date();
+  const yearMonths = Array.from({ length: 12 }).map((_, idx) => {
+    const d = new Date(
+      nowDate.getFullYear(),
+      nowDate.getMonth() - (11 - idx),
+      1,
+    );
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const prefix = `${yyyy}-${mm}`;
+    const label = d.toLocaleDateString("en-IN", { month: "short" });
+
+    const monthFillups = allFuelFillups.filter((l) =>
+      String(l.date || "").startsWith(prefix),
+    );
+    const liters = monthFillups.reduce(
+      (sum, l) => sum + Number(l.fuel_liters || 0),
+      0,
+    );
+    const mileages = monthFillups
+      .map((l) => Number(l.calculated_mileage || 0))
+      .filter((m) => m > 0);
+    const avgKmpl =
+      mileages.length > 0
+        ? mileages.reduce((a, b) => a + b, 0) / mileages.length
+        : 0;
+
+    return {
+      prefix,
+      label,
+      fillupsCount: monthFillups.length,
+      liters,
+      avgKmpl,
+    };
+  });
+
+  const maxYearKmpl = Math.max(...yearMonths.map((m) => m.avgKmpl), 20);
 
   const validMileages = comboPoints
     .map((p) => Number(p.calculated_mileage || 0))
@@ -338,7 +406,7 @@ function LogsContent() {
     .filter((l) => l.type === "wash")
     .reduce((sum, l) => sum + Number(l.amount || 0), 0);
 
-  const rawBuckets = (
+  const activeCategoryBuckets = (
     [
       { type: "fuel" as const, amount: fuelSpend },
       { type: "expense" as const, amount: partsSpend },
@@ -347,37 +415,76 @@ function LogsContent() {
     ] as const
   )
     .filter((b) => b.amount > 0)
-    .map((b) => ({
-      ...b,
-      ...CATEGORY_THEME[b.type],
-    }));
+    .map((b) => {
+      const exactPct = totalSpend > 0 ? (b.amount / totalSpend) * 100 : 0;
+      return {
+        ...b,
+        ...CATEGORY_THEME[b.type],
+        exactPct,
+        roundedPct: Math.round(exactPct),
+      };
+    });
 
-  const donutRadius = 42;
-  const donutCircumference = 2 * Math.PI * donutRadius;
-  let accumulatedPct = 0;
-
-  const donutSlices = rawBuckets.map((bucket) => {
-    const exactPct = totalSpend > 0 ? (bucket.amount / totalSpend) * 100 : 0;
-    const roundedPct = Math.round(exactPct);
-    const dashLength = (exactPct / 100) * donutCircumference;
-    const gap = rawBuckets.length > 1 ? 2.5 : 0;
-    const strokeDasharray = `${Math.max(0, dashLength - gap).toFixed(2)} ${donutCircumference.toFixed(2)}`;
-    const strokeDashoffset = -((accumulatedPct / 100) * donutCircumference);
-    accumulatedPct += exactPct;
-
+  // Multi-line Expense Split across the last 6 months (₹ spend per category line)
+  const splitMonths = Array.from({ length: 6 }).map((_, idx) => {
+    const d = new Date(
+      nowDate.getFullYear(),
+      nowDate.getMonth() - (5 - idx),
+      1,
+    );
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const prefix = `${yyyy}-${mm}`;
+    const label = d.toLocaleDateString("en-IN", { month: "short" });
+    const monthLogs = vehicleLogs.filter((l) =>
+      String(l.date || "").startsWith(prefix),
+    );
     return {
-      ...bucket,
-      exactPct,
-      roundedPct,
-      strokeDasharray,
-      strokeDashoffset,
+      prefix,
+      label,
+      fuel: monthLogs
+        .filter((l) => l.type === "fuel")
+        .reduce((s, l) => s + Number(l.amount || 0), 0),
+      expense: monthLogs
+        .filter((l) => l.type === "expense")
+        .reduce((s, l) => s + Number(l.amount || 0), 0),
+      service: monthLogs
+        .filter((l) => l.type === "service")
+        .reduce((s, l) => s + Number(l.amount || 0), 0),
+      wash: monthLogs
+        .filter((l) => l.type === "wash")
+        .reduce((s, l) => s + Number(l.amount || 0), 0),
     };
   });
 
-  const focusedSlice =
-    activeSliceIdx !== null && donutSlices[activeSliceIdx]
-      ? donutSlices[activeSliceIdx]
-      : null;
+  const maxSplitVal = Math.max(
+    100,
+    ...splitMonths.flatMap((m) => [m.fuel, m.expense, m.service, m.wash]),
+  );
+
+  const splitChartW = 420;
+  const splitChartH = 148;
+  const splitPadX = 26;
+  const splitTop = 18;
+  const splitBottom = 122;
+  const splitPlotH = splitBottom - splitTop;
+
+  const multiLineSeries = activeCategoryBuckets.map((bucket) => {
+    const pts = splitMonths.map((m, idx) => {
+      const val = m[bucket.type];
+      const x =
+        splitPadX +
+        (idx / (splitMonths.length - 1)) * (splitChartW - splitPadX * 2);
+      const y = splitBottom - (val / maxSplitVal) * splitPlotH;
+      return { x, y, val, label: m.label };
+    });
+    return {
+      ...bucket,
+      color: getSliceStroke(bucket.type),
+      path: buildSmoothPath(pts),
+      pts,
+    };
+  });
 
   const exportPdf = () => {
     const win = window.open("", "_blank", "width=900,height=700");
@@ -474,12 +581,25 @@ function LogsContent() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="funky-card p-5 space-y-2.5">
+          {/* Mileage & Fuel Combo (Last 6 Fillups) — Tap for Year's Graph */}
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setIsYearGraphOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setIsYearGraphOpen(true);
+              }
+            }}
+            title="Tap to view 12-month graph"
+            className="funky-card p-5 space-y-2.5 cursor-pointer hover:brightness-105 transition-all"
+          >
             <div className="flex items-center justify-between gap-2">
               <span className="font-black text-sm flex items-center gap-1.5">
                 <TrendingUp className="w-4 h-4" /> Mileage &amp; Fuel Combo
               </span>
-              <div className="flex items-center gap-2.5 text-[10px] font-extrabold text-[var(--text-muted)]">
+              <div className="flex items-center gap-2 text-[10px] font-extrabold text-[var(--text-muted)]">
                 <span className="inline-flex items-center gap-1">
                   <span
                     className="w-2.5 h-0.5 inline-block"
@@ -494,6 +614,9 @@ function LogsContent() {
                 <span className="inline-flex items-center gap-1">
                   <span className="w-2.5 h-2.5 rounded-sm bg-current opacity-25 inline-block" />
                   Fuel (L)
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)] text-[var(--text-main)]">
+                  1Y View
                 </span>
               </div>
             </div>
@@ -683,8 +806,9 @@ function LogsContent() {
             )}
           </div>
 
+          {/* At-a-Glance Multi-Line Expense Split Graph + Tap-to-Filter Chips */}
           <div className="funky-card p-5 flex flex-col justify-between gap-3.5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <span className="font-black text-sm flex items-center gap-1.5">
                 <PieChart className="w-4 h-4" /> Expense Split
               </span>
@@ -693,153 +817,150 @@ function LogsContent() {
               </span>
             </div>
 
-            {donutSlices.length === 0 ? (
+            {activeCategoryBuckets.length === 0 ? (
               <div className="h-44 flex items-center justify-center text-xs text-[var(--text-muted)]">
                 No expenses recorded yet.
               </div>
             ) : (
-              <div className="space-y-3.5">
-                <div className="flex items-center justify-center">
-                  <div className="relative w-32 h-32 flex items-center justify-center">
-                    <svg
-                      viewBox="0 0 112 112"
-                      className="w-full h-full -rotate-90 overflow-visible"
-                    >
-                      <circle
-                        cx="56"
-                        cy="56"
-                        r={donutRadius}
-                        fill="none"
-                        stroke="currentColor"
-                        strokeOpacity="0.1"
-                        strokeWidth="15"
-                      />
+              <div className="space-y-3">
+                <div className="p-3 rounded-2xl bg-[var(--accent-secondary)]/65 border border-[var(--border-color)]">
+                  <svg
+                    viewBox={`0 0 ${splitChartW} ${splitChartH}`}
+                    className="w-full h-36 overflow-visible"
+                  >
+                    <line
+                      x1={splitPadX - 6}
+                      y1={splitBottom}
+                      x2={splitChartW - splitPadX + 6}
+                      y2={splitBottom}
+                      stroke="currentColor"
+                      strokeOpacity="0.18"
+                      strokeWidth="1"
+                    />
 
-                      {donutSlices.map((slice, idx) => {
-                        const isSelected = activeSliceIdx === idx;
-                        const sliceColor = getSliceStroke(slice.type);
-                        return (
-                          <circle
-                            key={slice.label}
-                            cx="56"
-                            cy="56"
-                            r={donutRadius}
-                            fill="none"
-                            stroke={sliceColor}
-                            strokeWidth={isSelected ? "18" : "15"}
-                            strokeDasharray={slice.strokeDasharray}
-                            strokeDashoffset={slice.strokeDashoffset}
-                            strokeLinecap="butt"
-                            onClick={() =>
-                              setActiveSliceIdx((prev) =>
-                                prev === idx ? null : idx,
-                              )
-                            }
-                            onMouseEnter={() => setActiveSliceIdx(idx)}
-                            onMouseLeave={() => setActiveSliceIdx(null)}
-                            className="transition-all duration-300 cursor-pointer"
-                            style={{
-                              opacity:
-                                activeSliceIdx === null || isSelected
-                                  ? enhancedTheme
-                                    ? 1
-                                    : 0.94
-                                  : 0.38,
-                            }}
+                    {splitMonths.map((m, idx) => {
+                      const x =
+                        splitPadX +
+                        (idx / (splitMonths.length - 1)) *
+                          (splitChartW - splitPadX * 2);
+                      return (
+                        <g key={m.prefix}>
+                          <line
+                            x1={x}
+                            y1={splitTop}
+                            x2={x}
+                            y2={splitBottom}
+                            stroke="currentColor"
+                            strokeOpacity="0.09"
+                            strokeDasharray="2 2"
+                            strokeWidth="1"
                           />
-                        );
-                      })}
-                    </svg>
+                          <text
+                            x={x}
+                            y={splitBottom + 16}
+                            textAnchor="middle"
+                            fontSize="8.5"
+                            fontWeight="700"
+                            fill="currentColor"
+                            fillOpacity="0.65"
+                          >
+                            {m.label}
+                          </text>
+                        </g>
+                      );
+                    })}
 
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-2">
-                      <span className="text-[9px] font-extrabold uppercase tracking-wider text-[var(--text-muted)] max-w-[74px] leading-tight">
-                        {focusedSlice ? focusedSlice.shortLabel : "Total"}
-                      </span>
-                      <span className="text-xs font-black tabular-nums leading-tight mt-0.5">
-                        ₹
-                        {Math.round(
-                          focusedSlice ? focusedSlice.amount : totalSpend,
-                        ).toLocaleString()}
-                      </span>
-                      {focusedSlice && (
-                        <span
-                          className="text-[10px] font-black mt-0.5"
+                    {multiLineSeries.map((series, idx) => {
+                      const isHighlighted =
+                        activeSliceIdx === null ||
+                        activeSliceIdx === idx ||
+                        filterType === series.type;
+                      return (
+                        <g
+                          key={series.type}
                           style={{
-                            color: getReadableTextColor(focusedSlice.type),
+                            opacity: isHighlighted ? 1 : 0.22,
+                            transition: "opacity 200ms ease",
                           }}
                         >
-                          {focusedSlice.roundedPct}%
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                          {series.pts.length > 1 && (
+                            <path
+                              d={series.path}
+                              fill="none"
+                              stroke={series.color}
+                              strokeWidth={isHighlighted ? "2.6" : "2"}
+                              strokeLinecap="round"
+                            />
+                          )}
+                          {series.pts.map((p, pIdx) => (
+                            <circle
+                              key={`${series.type}-${pIdx}`}
+                              cx={p.x}
+                              cy={p.y}
+                              r={p.val > 0 ? "3.4" : "2"}
+                              fill="var(--bg-popover)"
+                              stroke={series.color}
+                              strokeWidth="2"
+                            />
+                          ))}
+                        </g>
+                      );
+                    })}
+                  </svg>
                 </div>
 
-                <div className="space-y-1.5">
-                  {donutSlices.map((slice, idx) => {
-                    const isSelected = activeSliceIdx === idx;
-                    const textColor = getReadableTextColor(slice.type);
-                    const sliceColor = getSliceStroke(slice.type);
-                    const badgeBg = enhancedTheme
-                      ? slice.badgeBg
-                      : slice.classicBadgeBg;
-                    const badgeBorder = enhancedTheme
-                      ? slice.badgeBorder
-                      : slice.classicBadgeBorder;
+                {/* Large, Mobile-Friendly Category Filter Pills */}
+                <div className="grid grid-cols-2 gap-2">
+                  {activeCategoryBuckets.map((bucket, idx) => {
+                    const isSelected =
+                      activeSliceIdx === idx || filterType === bucket.type;
+                    const textColor = getReadableTextColor(bucket.type);
+                    const lineColor = getSliceStroke(bucket.type);
 
                     return (
                       <button
-                        key={slice.label}
+                        key={bucket.type}
                         type="button"
                         onClick={() => {
                           setActiveSliceIdx((prev) =>
                             prev === idx ? null : idx,
                           );
                           setFilterType((prev) =>
-                            prev === slice.type ? "all" : slice.type,
+                            prev === bucket.type ? "all" : bucket.type,
                           );
                           setIsLogsSectionOpen(true);
                           setVisibleCount(6);
                         }}
-                        onMouseEnter={() => setActiveSliceIdx(idx)}
-                        onMouseLeave={() => setActiveSliceIdx(null)}
-                        className={`w-full px-3 py-2 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
-                          isSelected || filterType === slice.type
-                            ? "bg-white/25 dark:bg-white/12 scale-[1.01]"
-                            : "bg-[var(--accent-secondary)]/70 hover:brightness-105"
-                        }`}
                         style={{
-                          borderColor:
-                            isSelected || filterType === slice.type
-                              ? sliceColor
-                              : "var(--border-subtle)",
+                          borderColor: isSelected
+                            ? lineColor
+                            : "var(--border-color)",
                         }}
+                        className={`min-h-[44px] px-3 py-2 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                          isSelected
+                            ? "bg-white/30 dark:bg-white/15"
+                            : "bg-[var(--accent-secondary)]/75 hover:brightness-105"
+                        }`}
                       >
-                        <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex items-center gap-1.5 min-w-0">
                           <span
-                            className="w-2.5 h-2.5 rounded-full shrink-0"
-                            style={getFrostedDotStyle(slice.type, false)}
-                          />
-                          <span className="text-xs font-extrabold">
-                            {slice.label}
-                          </span>
-                        </div>
-
-                        <div className="shrink-0 flex items-center gap-2">
-                          <span className="text-xs font-black tabular-nums">
-                            ₹{slice.amount.toLocaleString()}
-                          </span>
-                          <span
-                            className="text-[11px] font-black px-2 py-0.5 rounded-full tabular-nums border"
+                            className="w-2.5 h-0.5 rounded-full shrink-0"
                             style={{
-                              backgroundColor: badgeBg,
-                              color: textColor,
-                              borderColor: badgeBorder,
+                              backgroundColor: lineColor,
+                              height: "3px",
+                              width: "10px",
                             }}
-                          >
-                            {slice.roundedPct}%
+                          />
+                          <span className="text-xs font-extrabold truncate">
+                            {bucket.shortLabel}
                           </span>
                         </div>
+                        <span
+                          style={{ color: textColor }}
+                          className="text-[11px] font-black tabular-nums shrink-0"
+                        >
+                          {bucket.roundedPct}%
+                        </span>
                       </button>
                     );
                   })}
@@ -1098,6 +1219,180 @@ function LogsContent() {
           )}
         </div>
       </div>
+
+      {/* 12-Month / Year Graph Modal */}
+      {isYearGraphOpen && (
+        <div
+          onClick={() => setIsYearGraphOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="glass-modal w-full max-w-lg p-5 sm:p-6 space-y-4 max-h-[88vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h2 className="text-base font-black flex items-center gap-1.5">
+                  <Calendar
+                    className={`w-4 h-4 ${
+                      enhancedTheme
+                        ? "text-emerald-500 dark:text-emerald-400"
+                        : "text-[#025cbc] dark:text-[#3898ec]"
+                    }`}
+                  />
+                  12-Month Mileage &amp; Fuel
+                </h2>
+                <p className="text-xs text-[var(--text-muted)]">
+                  Monthly average km/l &amp; fuel volume over the past year
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsYearGraphOpen(false)}
+                aria-label="Close year graph"
+                className="funky-btn p-2 rounded-full bg-[var(--accent-secondary)] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div
+              style={
+                enhancedTheme
+                  ? {
+                      backgroundImage:
+                        "linear-gradient(135deg, rgba(14, 132, 235, 0.08), rgba(99, 102, 241, 0.08))",
+                    }
+                  : undefined
+              }
+              className="p-3.5 rounded-2xl bg-[var(--accent-secondary)]/75 border border-[var(--border-color)] space-y-3"
+            >
+              <div className="flex items-center justify-between text-[11px] font-extrabold">
+                <span
+                  className={
+                    enhancedTheme
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-[var(--text-muted)]"
+                  }
+                >
+                  AVG KM/L
+                </span>
+                <span
+                  className={
+                    enhancedTheme
+                      ? "text-[#025cbc] dark:text-[#60a5fa]"
+                      : "text-[var(--text-muted)]"
+                  }
+                >
+                  FUEL LITERS
+                </span>
+              </div>
+
+              <div className="grid grid-cols-12 gap-1.5 items-end h-36 pt-4">
+                {yearMonths.map((m) => {
+                  const kmplPct =
+                    m.avgKmpl > 0
+                      ? Math.max(
+                          10,
+                          Math.round((m.avgKmpl / maxYearKmpl) * 100),
+                        )
+                      : 0;
+                  const barColor =
+                    m.avgKmpl > 0
+                      ? enhancedTheme
+                        ? getHardMileageColor(m.avgKmpl)
+                        : "#025cbc"
+                      : "transparent";
+                  const labelClass =
+                    m.avgKmpl > 0 && enhancedTheme
+                      ? getHardMileageTextClass(m.avgKmpl)
+                      : "text-[var(--text-main)]";
+
+                  return (
+                    <div
+                      key={m.prefix}
+                      className="h-full flex flex-col items-center justify-end gap-1 min-w-0"
+                    >
+                      <span
+                        className={`text-[9px] font-black tabular-nums ${labelClass}`}
+                      >
+                        {m.avgKmpl > 0 ? m.avgKmpl.toFixed(1) : "—"}
+                      </span>
+                      <div className="w-full flex-1 flex items-end justify-center">
+                        <div
+                          className="w-full max-w-[18px] rounded-t-md transition-all duration-300"
+                          style={{
+                            height: `${kmplPct}%`,
+                            backgroundColor: barColor,
+                            opacity: m.avgKmpl > 0 ? 0.92 : 0,
+                          }}
+                        />
+                      </div>
+                      <span className="text-[9px] font-bold text-[var(--text-muted)] truncate">
+                        {m.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="divide-y divide-[var(--border-subtle)] text-xs">
+              {yearMonths
+                .slice()
+                .reverse()
+                .filter((m) => m.fillupsCount > 0 || m.liters > 0)
+                .map((m) => (
+                  <div
+                    key={m.prefix}
+                    className="py-2 flex items-center justify-between gap-2"
+                  >
+                    <div className="font-extrabold">
+                      {m.label} {m.prefix.slice(0, 4)}{" "}
+                      <span
+                        className={`text-[11px] font-semibold ${
+                          enhancedTheme
+                            ? "text-indigo-600 dark:text-indigo-400"
+                            : "text-[var(--text-muted)]"
+                        }`}
+                      >
+                        ({m.fillupsCount}{" "}
+                        {m.fillupsCount === 1 ? "fillup" : "fillups"})
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 tabular-nums font-black">
+                      <span
+                        className={
+                          enhancedTheme
+                            ? "text-[#025cbc] dark:text-[#60a5fa]"
+                            : "text-[#025cbc] dark:text-[#60a5fa]"
+                        }
+                      >
+                        {m.liters.toFixed(1)} L
+                      </span>
+                      <span
+                        className={
+                          m.avgKmpl > 0 && enhancedTheme
+                            ? getHardMileageTextClass(m.avgKmpl)
+                            : ""
+                        }
+                      >
+                        {m.avgKmpl > 0 ? `${m.avgKmpl.toFixed(2)} km/l` : "—"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              {yearMonths.every(
+                (m) => m.fillupsCount === 0 && m.liters === 0,
+              ) && (
+                <div className="py-4 text-center text-[var(--text-muted)]">
+                  No fuel fillups in the past 12 months.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {editingEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm">
