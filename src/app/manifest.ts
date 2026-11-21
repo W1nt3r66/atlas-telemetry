@@ -2,19 +2,15 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Atlas",
+    name: "Atlas — Telemetry, Mileage & Garage",
     short_name: "Atlas",
-    description: "Minimal F1-inspired car telemetry, mileage & garage app",
+    description:
+      "Telemetry, mileage tracking, route strategy, and garage management.",
     start_url: "/",
     display: "standalone",
-    background_color: "#091926",
+    background_color: "#0b151e",
     theme_color: "#025cbc",
     icons: [
-      {
-        src: "/icon",
-        sizes: "512x512",
-        type: "image/png",
-      },
       {
         src: "/apple-icon",
         sizes: "180x180",
