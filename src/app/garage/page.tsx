@@ -275,7 +275,7 @@ export default function GaragePage() {
   return (
     <div className="space-y-6">
       {toastMessage && (
-        <div className="fixed top-20 right-4 z-50 glass-modal px-4 py-3 shadow-2xl flex items-center gap-2 text-xs font-black animate-in fade-in slide-in-from-top-2">
+        <div className="fixed top-20 right-4 z-50 glass-popover px-4 py-3 flex items-center gap-2 text-xs font-black animate-in fade-in slide-in-from-top-2">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>{toastMessage}</span>
         </div>
@@ -423,13 +423,21 @@ export default function GaragePage() {
                 ) : (
                   <>
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
                         {enhancedTheme && (
-                          <div className="w-20 h-12 flex items-center justify-start shrink-0 overflow-visible [&_img]:!w-full [&_img]:!h-full [&_img]:!max-w-none [&_img]:!object-contain [&_img]:!object-left [&_div]:!w-full [&_div]:!h-full [&_div]:!max-w-none [&_div]:!flex [&_div]:!items-center [&_div]:!justify-start [&_div]:!overflow-visible">
+                          <div
+                            style={{
+                              WebkitMaskImage:
+                                "linear-gradient(to right, #000 68%, transparent 100%)",
+                              maskImage:
+                                "linear-gradient(to right, #000 68%, transparent 100%)",
+                            }}
+                            className="w-24 h-14 flex items-center justify-start shrink-0 [&_img]:!w-full [&_img]:!h-full [&_img]:!max-w-none [&_img]:!object-contain [&_img]:!object-left [&_div]:!w-full [&_div]:!h-full [&_div]:!max-w-none [&_div]:!flex [&_div]:!items-center [&_div]:!justify-start"
+                          >
                             <VehicleAvatar
                               avatarKey={currentCardAvatar}
                               vehicleId={v.id}
-                              className="!w-full !h-full !max-w-none !object-contain !object-left !overflow-visible"
+                              className="!w-full !h-full !max-w-none !object-contain !object-left"
                             />
                           </div>
                         )}
