@@ -460,97 +460,118 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Compact Sign-In Prompt When Logged Out */}
-        {!user && (
-          <div className="funky-card p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 max-w-full">
-            <div className="space-y-0.5 min-w-0 flex-1">
-              <div className="font-black text-sm">
-                Sign in or create an account to get your car&apos;s diagnostics
-              </div>
-              <p className="text-xs text-[var(--text-muted)]">
-                Shift out of neutral and sync your vehicles, fuel logs, and
-                mileage across devices.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={signInWithGoogle}
-              className="funky-btn-primary px-4 py-2.5 rounded-full font-black text-xs flex items-center gap-1.5 cursor-pointer shrink-0"
-            >
-              <LogIn className="w-3.5 h-3.5" />
-              <span>Sign in with Google</span>
-            </button>
-          </div>
-        )}
-
-        {/* Hero Vehicle Banner */}
-        <div
-          style={
-            enhancedTheme
-              ? {
-                  backgroundImage:
-                    "radial-gradient(circle at 92% 20%, rgba(56, 152, 236, 0.14) 0%, transparent 60%)",
-                }
-              : undefined
-          }
-          className="funky-card p-5 sm:p-6 min-h-[126px] sm:min-h-[140px] relative overflow-hidden flex items-end max-w-full"
-        >
-          {enhancedTheme && activeVehicle && (
-            <div className="pointer-events-none select-none absolute inset-y-0 left-[34%] sm:left-[35%] right-0 flex items-end justify-end z-0">
-              <VehicleAvatar
-                avatarKey={vehicleAvatarKey}
-                vehicleId={activeVehicle.id}
-                className="w-full h-full"
-              />
-            </div>
-          )}
-
-          <div className="relative z-10 w-full flex items-end justify-between gap-3">
-            <div className="space-y-1 min-w-0 flex-1">
-              <div
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold max-w-full border ${
-                  enhancedTheme
-                    ? "bg-[#0e84eb]/12 border-[#0e84eb]/30 text-[#025cbc] dark:text-[#60a5fa]"
-                    : "bg-[var(--accent-secondary)] border-[var(--border-color)]"
-                }`}
-              >
-                <Sparkles className="w-3 h-3 shrink-0" />
-                <span className="truncate">
-                  {activeVehicle
-                    ? `${activeVehicle.plate || "IN12AB3456"} • ${activeVehicle.fuel_type}`
-                    : "NO VEHICLE SELECTED"}
-                </span>
-              </div>
-              <h1 className="text-3xl sm:text-4xl font-black tracking-tight leading-none pt-1 truncate">
-                {activeVehicle ? activeVehicle.name : "Atlas Telemetry"}
-              </h1>
-              <p className="text-xs font-semibold text-[var(--text-muted)] truncate">
-                {activeVehicle
-                  ? `${activeVehicle.manufacturer} • ${owner.fullName || user?.email || "Driver"}`
-                  : "Sign in with Google or add a vehicle in Garage to begin"}
-              </p>
-            </div>
-
-            <div className="relative z-20 text-right shrink-0">
-              <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#081526] dark:text-slate-100 mb-0.5">
-                Odometer
-              </div>
-              <div className="text-2xl sm:text-3xl font-black tabular-nums leading-none text-[#06101e] dark:text-white">
-                {latestOdo.toLocaleString()}{" "}
-                <span
-                  className={`text-xs sm:text-sm font-extrabold ${
+        {/* Hero Vehicle Banner (or Unified Guest Welcome Card When Logged Out) */}
+        {!user ? (
+          <div
+            style={
+              enhancedTheme
+                ? {
+                    backgroundImage:
+                      "radial-gradient(circle at 92% 20%, rgba(56, 152, 236, 0.14) 0%, transparent 60%)",
+                  }
+                : undefined
+            }
+            className="funky-card p-5 sm:p-6 relative overflow-hidden max-w-full"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1.5 min-w-0">
+                <div
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold border ${
                     enhancedTheme
-                      ? "text-[#025cbc] dark:text-[#3898ec]"
-                      : "font-bold text-[var(--text-muted)]"
+                      ? "bg-[#0e84eb]/12 border-[#0e84eb]/30 text-[#025cbc] dark:text-[#60a5fa]"
+                      : "bg-[var(--accent-secondary)] border-[var(--border-color)]"
                   }`}
                 >
-                  km
-                </span>
+                  <Sparkles className="w-3 h-3 shrink-0" />
+                  <span>GARAGE &amp; TELEMETRY</span>
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-black tracking-tight leading-tight">
+                  Atlas Telemetry
+                </h1>
+                <p className="text-xs font-semibold text-[var(--text-muted)] leading-relaxed">
+                  Sign in or create an account to shift out of neutral and check
+                  your car&apos;s diagnostics.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={signInWithGoogle}
+                className="funky-btn-primary px-4 py-2.5 rounded-full font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 self-start sm:self-center"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Sign in with Google</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div
+            style={
+              enhancedTheme
+                ? {
+                    backgroundImage:
+                      "radial-gradient(circle at 92% 20%, rgba(56, 152, 236, 0.14) 0%, transparent 60%)",
+                  }
+                : undefined
+            }
+            className="funky-card p-5 sm:p-6 min-h-[126px] sm:min-h-[140px] relative overflow-hidden flex items-end max-w-full"
+          >
+            {enhancedTheme && activeVehicle && (
+              <div className="pointer-events-none select-none absolute inset-y-0 left-[34%] sm:left-[35%] right-0 flex items-end justify-end z-0">
+                <VehicleAvatar
+                  avatarKey={vehicleAvatarKey}
+                  vehicleId={activeVehicle.id}
+                  className="w-full h-full"
+                />
+              </div>
+            )}
+
+            <div className="relative z-10 w-full flex items-end justify-between gap-3">
+              <div className="space-y-1 min-w-0 flex-1">
+                <div
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold max-w-full border ${
+                    enhancedTheme
+                      ? "bg-[#0e84eb]/12 border-[#0e84eb]/30 text-[#025cbc] dark:text-[#60a5fa]"
+                      : "bg-[var(--accent-secondary)] border-[var(--border-color)]"
+                  }`}
+                >
+                  <Sparkles className="w-3 h-3 shrink-0" />
+                  <span className="truncate">
+                    {activeVehicle
+                      ? `${activeVehicle.plate || "IN12AB3456"} • ${activeVehicle.fuel_type}`
+                      : "NO VEHICLE SELECTED"}
+                  </span>
+                </div>
+                <h1 className="text-3xl sm:text-4xl font-black tracking-tight leading-none pt-1 truncate">
+                  {activeVehicle ? activeVehicle.name : "Atlas Telemetry"}
+                </h1>
+                <p className="text-xs font-semibold text-[var(--text-muted)] truncate">
+                  {activeVehicle
+                    ? `${activeVehicle.manufacturer} • ${owner.fullName || user?.email || "Driver"}`
+                    : "Add a vehicle in Garage to begin"}
+                </p>
+              </div>
+
+              <div className="relative z-20 text-right shrink-0">
+                <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#081526] dark:text-slate-100 mb-0.5">
+                  Odometer
+                </div>
+                <div className="text-2xl sm:text-3xl font-black tabular-nums leading-none text-[#06101e] dark:text-white">
+                  {latestOdo.toLocaleString()}{" "}
+                  <span
+                    className={`text-xs sm:text-sm font-extrabold ${
+                      enhancedTheme
+                        ? "text-[#025cbc] dark:text-[#3898ec]"
+                        : "font-bold text-[var(--text-muted)]"
+                    }`}
+                  >
+                    km
+                  </span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Single Cockpit Telemetry Cluster & Care Rings Tile */}
         <div className="funky-card p-5 sm:p-6 relative overflow-hidden max-w-full">
@@ -1124,14 +1145,14 @@ export default function DashboardPage() {
 
         {/* Collapsible Recent Logs Dropdown Card */}
         <div className="funky-card p-4 sm:p-5 max-w-full">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-start justify-between gap-2">
             <button
               type="button"
               onClick={() => setLogsExpanded((prev) => !prev)}
               aria-expanded={logsExpanded}
-              className="flex-1 flex items-center justify-between gap-2 text-left cursor-pointer py-0.5 min-w-0"
+              className="flex-1 flex items-start justify-between gap-2 text-left cursor-pointer py-0.5 min-w-0"
             >
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <h2 className="font-black text-sm sm:text-base">
                     Recent Logs
@@ -1149,19 +1170,19 @@ export default function DashboardPage() {
                   )}
                 </div>
                 {!logsExpanded && (
-                  <p className="text-[11px] text-[var(--text-muted)] truncate mt-0.5 flex items-center gap-1.5">
+                  <p className="text-[11px] text-[var(--text-muted)] mt-1 leading-snug break-words flex items-start gap-1.5">
                     {latestLog ? (
                       <>
                         {enhancedTheme && (
                           <span
-                            className="w-1.5 h-1.5 rounded-full shrink-0"
+                            className="w-1.5 h-1.5 rounded-full shrink-0 mt-1"
                             style={{
                               backgroundColor:
                                 TELEMETRY_DOT[latestLog.type] || "#6366f1",
                             }}
                           />
                         )}
-                        <span className="truncate">
+                        <span>
                           Latest: {latestLog.category} • {latestLog.date}
                           {latestLog.amount > 0
                             ? ` • ₹${latestLog.amount.toLocaleString()}`
@@ -1177,7 +1198,7 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              <div className="w-7 h-7 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)] flex items-center justify-center shrink-0">
+              <div className="w-7 h-7 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)] flex items-center justify-center shrink-0 mt-0.5">
                 <ChevronDown
                   className={`w-4 h-4 transition-transform duration-200 ${
                     logsExpanded ? "rotate-180" : ""
@@ -1190,7 +1211,7 @@ export default function DashboardPage() {
               href={user ? "/logs" : "/"}
               title="Open Full Logs"
               aria-label="Open Full Logs"
-              className="funky-btn w-8 h-8 rounded-full bg-[var(--accent-secondary)] flex items-center justify-center shrink-0"
+              className="funky-btn w-8 h-8 rounded-full bg-[var(--accent-secondary)] flex items-center justify-center shrink-0 mt-0.5"
             >
               <ArrowUpRight className="w-4 h-4" />
             </Link>
@@ -1199,7 +1220,7 @@ export default function DashboardPage() {
           {logsExpanded && (
             <div className="mt-3 pt-2 border-t border-[var(--border-subtle)]">
               {vLogs.length === 0 ? (
-                <p className="text-xs text-[var(--text-muted)] py-3">
+                <p className="text-xs text-[var(--text-muted)] py-3 leading-relaxed">
                   {!user
                     ? "Log in or create an account to check under the hood of your car's diagnostics."
                     : "No telemetry logs yet. Tap + in the top bar to log fuel or care."}

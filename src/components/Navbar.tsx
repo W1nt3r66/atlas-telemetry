@@ -267,7 +267,7 @@ export default function Navbar() {
               </button>
 
               {isThemeOpen && (
-                <div className="glass-popover absolute right-0 mt-2.5 w-64 p-4 space-y-3.5 z-[60] text-xs">
+                <div className="glass-popover fixed right-4 top-16 w-[min(16rem,calc(100vw-2rem))] sm:absolute sm:right-0 sm:top-auto sm:mt-2.5 sm:w-64 p-4 space-y-3.5 z-[60] text-xs">
                   <div className="flex items-center justify-between">
                     <span className="font-black text-sm text-[var(--text-main)]">
                       Theme
@@ -376,7 +376,7 @@ export default function Navbar() {
                 </button>
 
                 {isNotifOpen && maint && (
-                  <div className="glass-popover absolute right-0 mt-2.5 w-80 p-4 space-y-3 z-[60] text-xs">
+                  <div className="glass-popover fixed right-4 top-16 w-[min(20rem,calc(100vw-2rem))] sm:absolute sm:right-0 sm:top-auto sm:mt-2.5 sm:w-80 p-4 space-y-3 z-[60] text-xs">
                     <div className="flex items-center justify-between">
                       <span className="font-black text-sm text-[var(--text-main)]">
                         Care Alerts
