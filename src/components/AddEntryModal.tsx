@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef } from "react";
+import { createWorker } from "tesseract.js";
 import { useApp } from "@/context/AppContext";
 import {
   X,
@@ -28,21 +29,19 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
-async function prepareImageBase64(file: File): Promise<string> {
+async function prepareImageForOcr(file: File): Promise<string> {
   const rawDataUrl = await readFileAsDataUrl(file);
 
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
       try {
-        const maxDim = 640;
+        const maxDim = 1200;
         let { width, height } = img;
-
         if (!width || !height) {
           resolve(rawDataUrl);
           return;
         }
-
         if (width > maxDim || height > maxDim) {
           if (width > height) {
             height = Math.round((height * maxDim) / width);
@@ -52,7 +51,6 @@ async function prepareImageBase64(file: File): Promise<string> {
             height = maxDim;
           }
         }
-
         const canvas = document.createElement("canvas");
         canvas.width = width;
         canvas.height = height;
@@ -62,16 +60,58 @@ async function prepareImageBase64(file: File): Promise<string> {
           return;
         }
         ctx.drawImage(img, 0, 0, width, height);
-        const compressed = canvas.toDataURL("image/jpeg", 0.65);
-        resolve(compressed && compressed.length > 50 ? compressed : rawDataUrl);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
       } catch {
         resolve(rawDataUrl);
       }
     };
-
     img.onerror = () => resolve(rawDataUrl);
     img.src = rawDataUrl;
   });
+}
+
+function parseOcrText(text: string) {
+  const clean = text.replace(/\s+/g, " ");
+
+  const amountMatch =
+    clean.match(
+      /(?:₹|rs\.?|inr|total|amount)\s*[:\-]?\s*(\d[\d,]*(?:\.\d{1,2})?)/i,
+    ) || clean.match(/\b(\d{2,6}(?:\.\d{1,2})?)\s*(?:inr|rs)\b/i);
+  const amount = amountMatch ? Number(amountMatch[1].replace(/,/g, "")) : null;
+
+  const litersMatch = clean.match(
+    /(\d+(?:\.\d{1,2})?)\s*(?:l|ltr|litres?|liters?)\b/i,
+  );
+  const fuel_liters = litersMatch ? Number(litersMatch[1]) : null;
+
+  const odoMatch = clean.match(/\b(\d{3,7})\s*km\b/i);
+  const odo_reading = odoMatch ? Number(odoMatch[1].replace(/,/g, "")) : null;
+
+  let date: string | null = null;
+  const isoMatch = clean.match(/\b(20\d{2})-(\d{2})-(\d{2})\b/);
+  if (isoMatch) {
+    date = `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+  } else {
+    const dmyMatch = clean.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](20\d{2})\b/);
+    if (dmyMatch) {
+      const dd = dmyMatch[1].padStart(2, "0");
+      const mm = dmyMatch[2].padStart(2, "0");
+      date = `${dmyMatch[3]}-${mm}-${dd}`;
+    }
+  }
+
+  const firstLine = text
+    .split("\n")
+    .map((l) => l.trim())
+    .find((l) => l.length >= 3);
+
+  return {
+    amount: amount && amount > 0 ? amount : null,
+    fuel_liters: fuel_liters && fuel_liters > 0 ? fuel_liters : null,
+    odo_reading: odo_reading && odo_reading > 0 ? odo_reading : null,
+    date,
+    notes: firstLine ? firstLine.slice(0, 60) : null,
+  };
 }
 
 function sanitizePositiveNumber(raw: string): string {
@@ -109,85 +149,52 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
     if (!file) return;
 
     setScanning(true);
-    setScanStatus(null);
+    setScanStatus("Reading image on device...");
 
+    let worker: Awaited<ReturnType<typeof createWorker>> | null = null;
     try {
-      const preparedBase64 = await prepareImageBase64(file);
+      const preparedImage = await prepareImageForOcr(file);
+      worker = await createWorker("eng");
+      const {
+        data: { text },
+      } = await worker.recognize(preparedImage);
 
-      const res = await fetch("/api/scan-receipt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageBase64: preparedBase64,
-          scanType: entryType,
-        }),
-      });
-
-      const rawResponseText = await res.text();
-      let data: Record<string, unknown> = {};
-      try {
-        data = JSON.parse(rawResponseText);
-      } catch {
-        setScanStatus(
-          res.status === 504
-            ? "Scan timed out (504). Tap again to retry."
-            : `Server error (${res.status}). Try again.`,
-        );
-        setScanning(false);
-        return;
-      }
-
-      if (!res.ok || data.error) {
-        setScanStatus(
-          String(data.error || `Scan error (${res.status}). Try again.`),
-        );
-        setScanning(false);
-        return;
-      }
-
+      const parsed = parseOcrText(text || "");
       let detectedAny = false;
-      if (
-        data.amount !== null &&
-        data.amount !== undefined &&
-        Number(data.amount) > 0
-      ) {
-        setAmount(String(data.amount));
+
+      if (parsed.amount !== null) {
+        setAmount(String(parsed.amount));
         detectedAny = true;
       }
-      if (
-        data.fuel_liters !== null &&
-        data.fuel_liters !== undefined &&
-        Number(data.fuel_liters) > 0
-      ) {
-        setFuelLiters(String(data.fuel_liters));
+      if (parsed.fuel_liters !== null) {
+        setFuelLiters(String(parsed.fuel_liters));
         detectedAny = true;
       }
-      if (
-        data.odo_reading !== null &&
-        data.odo_reading !== undefined &&
-        Number(data.odo_reading) > 0
-      ) {
-        setOdoReading(String(data.odo_reading));
+      if (parsed.odo_reading !== null) {
+        setOdoReading(String(parsed.odo_reading));
         detectedAny = true;
       }
-      if (data.date && /^\d{4}-\d{2}-\d{2}$/.test(String(data.date))) {
-        setDate(String(data.date));
+      if (parsed.date) {
+        setDate(parsed.date);
         detectedAny = true;
       }
-      if (data.notes) {
-        setNotes(String(data.notes));
+      if (parsed.notes && !notes.trim()) {
+        setNotes(parsed.notes);
         detectedAny = true;
       }
 
       setScanStatus(
         detectedAny
-          ? "Details auto-filled from photo!"
-          : "No numbers detected — please enter manually.",
+          ? "Extracted from image — please double-check fields."
+          : "Couldn't read numbers clearly — try a closer crop or enter manually.",
       );
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Network error";
+      const msg = err instanceof Error ? err.message : "OCR failed";
       setScanStatus(`Scan failed: ${msg}`);
     } finally {
+      if (worker) {
+        await worker.terminate().catch(() => {});
+      }
       setScanning(false);
     }
   };
@@ -258,7 +265,6 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
           </button>
         </div>
 
-        {/* Category Switcher */}
         <div className="grid grid-cols-4 gap-2">
           {[
             { id: "fuel", label: "Fuel", icon: Fuel },
@@ -284,7 +290,6 @@ export default function AddEntryModal({ isOpen, onClose }: Props) {
           ))}
         </div>
 
-        {/* Dual AI Scanner Buttons: Camera OR Gallery */}
         <div className="space-y-1.5">
           <div className="grid grid-cols-2 gap-2.5">
             <button

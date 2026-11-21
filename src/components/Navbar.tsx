@@ -21,7 +21,28 @@ import {
   X,
   Palette,
   Layers,
+  Flag,
 } from "lucide-react";
+
+type F1TeamId =
+  | "default"
+  | "ferrari"
+  | "mercedes"
+  | "redbull"
+  | "mclaren"
+  | "astonmartin";
+
+const F1_TEAMS: { id: F1TeamId; label: string; swatch: string }[] = [
+  { id: "default", label: "Atlas", swatch: "#38bdf8" },
+  { id: "ferrari", label: "Ferrari", swatch: "#dc0000" },
+  { id: "mercedes", label: "Mercedes", swatch: "#00d2be" },
+  { id: "redbull", label: "Red Bull", swatch: "#1e41ff" },
+  { id: "mclaren", label: "McLaren", swatch: "#ff8000" },
+  { id: "astonmartin", label: "Aston Martin", swatch: "#006f62" },
+];
+
+const TEAM_STORAGE_KEY = "atlas_f1_team_theme";
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
 function MotorsportTelemetryLogo() {
   return (
@@ -34,7 +55,6 @@ function MotorsportTelemetryLogo() {
           "inset 0 1.5px 2px rgba(255, 255, 255, 0.68), inset 0 -1.5px 3px rgba(255, 255, 255, 0.24), 0 4px 12px rgba(54, 96, 138, 0.18)",
       }}
     >
-      {/* Top Curved Glass Highlight */}
       <span
         aria-hidden="true"
         className="pointer-events-none absolute -top-2.5 -left-2 w-[135%] h-[68%] rounded-[100%]"
@@ -43,8 +63,6 @@ function MotorsportTelemetryLogo() {
             "linear-gradient(180deg, rgba(255, 255, 255, 0.44) 0%, rgba(255, 255, 255, 0.05) 100%)",
         }}
       />
-
-      {/* Soft Bottom Glass Glint */}
       <span
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-1 bottom-0.5 h-[24%] rounded-b-[10px]"
@@ -53,8 +71,6 @@ function MotorsportTelemetryLogo() {
             "linear-gradient(0deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 100%)",
         }}
       />
-
-      {/* ~70% Coverage 2/3-Circle Translucent Liquid-Glass Arc, Needle & ATLAS */}
       <svg
         viewBox="0 0 36 36"
         fill="none"
@@ -74,7 +90,6 @@ function MotorsportTelemetryLogo() {
             <stop offset="50%" stopColor="rgba(255, 255, 255, 0.36)" />
             <stop offset="100%" stopColor="rgba(255, 255, 255, 0.68)" />
           </linearGradient>
-
           <linearGradient
             id="navbarIconNeedle"
             x1="18"
@@ -87,21 +102,18 @@ function MotorsportTelemetryLogo() {
             <stop offset="100%" stopColor="rgba(255, 255, 255, 0.9)" />
           </linearGradient>
         </defs>
-
         <path
           d="M7.43 23.6A12.2 12.2 0 1 1 28.57 23.6"
           stroke="url(#navbarIconArc)"
           strokeWidth="3.6"
           strokeLinecap="round"
         />
-
         <path
           d="M18 17.5L25.9 10.4"
           stroke="url(#navbarIconNeedle)"
           strokeWidth="3.6"
           strokeLinecap="round"
         />
-
         <text
           x="18"
           y="29.2"
@@ -118,8 +130,6 @@ function MotorsportTelemetryLogo() {
   );
 }
 
-const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
-
 export default function Navbar() {
   const pathname = usePathname();
   const {
@@ -133,6 +143,7 @@ export default function Navbar() {
   } = useApp();
   const { enhancedTheme, setThemeMode } = useDashboardTheme();
 
+  const [f1Team, setF1Team] = useState<F1TeamId>("default");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isThemeOpen, setIsThemeOpen] = useState(false);
@@ -142,6 +153,22 @@ export default function Navbar() {
   } | null>(null);
 
   const themeMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(TEAM_STORAGE_KEY) as F1TeamId | null;
+    if (saved && F1_TEAMS.some((t) => t.id === saved)) {
+      setF1Team(saved);
+      document.documentElement.dataset.f1Team = saved;
+    } else {
+      document.documentElement.dataset.f1Team = "default";
+    }
+  }, []);
+
+  const selectF1Team = (teamId: F1TeamId) => {
+    setF1Team(teamId);
+    localStorage.setItem(TEAM_STORAGE_KEY, teamId);
+    document.documentElement.dataset.f1Team = teamId;
+  };
 
   useEffect(() => {
     const onPointerDown = (e: MouseEvent) => {
@@ -166,7 +193,27 @@ export default function Navbar() {
   const maint = activeVehicle
     ? calculateMaintenanceStatus(activeVehicle, latestOdo)
     : null;
-  const hasUnreadAlert = Boolean(maint?.isWashDue || maint?.isServiceDue);
+
+  const isWashWithin7Days = Boolean(
+    maint && (maint.isWashDue || maint.washDaysLeft <= 7),
+  );
+  const serviceMilestone =
+    maint && !maint.isServiceDue
+      ? maint.serviceKmLeft <= 100
+        ? 100
+        : maint.serviceKmLeft <= 200
+          ? 200
+          : maint.serviceKmLeft <= 500
+            ? 500
+            : null
+      : null;
+
+  const hasUnreadAlert = Boolean(
+    maint?.isWashDue ||
+    maint?.isServiceDue ||
+    isWashWithin7Days ||
+    serviceMilestone !== null,
+  );
 
   useEffect(() => {
     if (!user || !activeVehicle || !maint) return;
@@ -174,6 +221,43 @@ export default function Navbar() {
     if (typeof window !== "undefined" && "Notification" in window) {
       if (Notification.permission === "default") {
         Notification.requestPermission().catch(() => {});
+      }
+    }
+
+    const triggerSystemNotif = (title: string, body: string) => {
+      if (
+        typeof window !== "undefined" &&
+        "Notification" in window &&
+        Notification.permission === "granted"
+      ) {
+        try {
+          new Notification(title, { body });
+        } catch {
+          // Handled by banner fallback
+        }
+      }
+    };
+
+    if (isWashWithin7Days) {
+      const washKey = `atlas_wash7_notif_${user.id}_${activeVehicle.id}`;
+      const lastWash = Number(localStorage.getItem(washKey) || 0);
+      if (Date.now() - lastWash >= TWENTY_FOUR_HOURS_MS) {
+        localStorage.setItem(washKey, String(Date.now()));
+        const title = `${activeVehicle.name}: Wash Due Soon (${maint.washDaysLeft}d left)`;
+        const body = `Scheduled wash window (${maint.seasonLabel}) is within 7 days.`;
+        setDailyBannerAlert({ title, body });
+        triggerSystemNotif(title, body);
+      }
+    }
+
+    if (serviceMilestone !== null) {
+      const mileKey = `atlas_svc_mile_${user.id}_${activeVehicle.id}_${serviceMilestone}`;
+      if (!localStorage.getItem(mileKey)) {
+        localStorage.setItem(mileKey, "1");
+        const title = `${activeVehicle.name}: Service in ≤${serviceMilestone} km`;
+        const body = `${maint.serviceKmLeft.toLocaleString()} km remaining until next service.`;
+        setDailyBannerAlert({ title, body });
+        triggerSystemNotif(title, body);
       }
     }
 
@@ -194,21 +278,10 @@ export default function Navbar() {
         ? `Service due now • ${maint.serviceKmLeft.toLocaleString()} km remaining.`
         : `Wash due in ${maint.washDaysLeft}d • Next service in ${maint.serviceKmLeft.toLocaleString()} km.`;
 
-      setDailyBannerAlert({ title, body });
-
-      if (
-        typeof window !== "undefined" &&
-        "Notification" in window &&
-        Notification.permission === "granted"
-      ) {
-        try {
-          new Notification(title, { body });
-        } catch {
-          // Handled by in-app frosted banner
-        }
-      }
+      setDailyBannerAlert((prev) => prev || { title, body });
+      triggerSystemNotif(title, body);
     }
-  }, [user, activeVehicle, maint]);
+  }, [user, activeVehicle, maint, isWashWithin7Days, serviceMilestone]);
 
   const navLinks = [
     { href: "/", label: "Overview", icon: LayoutDashboard },
@@ -218,11 +291,17 @@ export default function Navbar() {
     { href: "/owner", label: "Owner", icon: User },
   ];
 
+  const getSegmentedPillClass = (isActive: boolean) => {
+    if (!isActive) {
+      return "text-[var(--text-muted)] hover:text-[var(--text-main)]";
+    }
+    return f1Team === "default" ? "funky-btn-primary" : "team-pill-active";
+  };
+
   return (
     <>
       <header className="sticky top-0 z-40 backdrop-blur-xl bg-[var(--bg-main)]/30 border-b border-[var(--border-color)]">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
-          {/* Brand Logo + App Name */}
           <Link href="/" className="flex items-center gap-2.5 shrink-0">
             <div className="w-10 h-10 rounded-[11px] flex items-center justify-center overflow-hidden">
               <MotorsportTelemetryLogo />
@@ -232,7 +311,6 @@ export default function Navbar() {
             </span>
           </Link>
 
-          {/* Right Controls (Clean & Uncluttered) */}
           <div className="flex items-center gap-2 shrink-0">
             {user && (
               <button
@@ -246,7 +324,6 @@ export default function Navbar() {
               </button>
             )}
 
-            {/* Theme Button -> Dark/Light & Hard/Soft Compound */}
             <div className="relative" ref={themeMenuRef}>
               <button
                 type="button"
@@ -261,13 +338,13 @@ export default function Navbar() {
                 {theme === "light" ? (
                   <Sun className="w-4 h-4 text-amber-500" />
                 ) : (
-                  <Moon className="w-4 h-4 text-[#3898ec]" />
+                  <Moon className="w-4 h-4 text-[var(--team-accent)]" />
                 )}
                 <span className="hidden sm:inline">Theme</span>
               </button>
 
               {isThemeOpen && (
-                <div className="glass-popover fixed right-4 top-16 w-[min(16rem,calc(100vw-2rem))] sm:absolute sm:right-0 sm:top-auto sm:mt-2.5 sm:w-64 p-4 space-y-3.5 z-[60] text-xs">
+                <div className="glass-popover fixed right-4 top-16 w-[min(17.5rem,calc(100vw-2rem))] sm:absolute sm:right-0 sm:top-auto sm:mt-2.5 sm:w-72 p-4 space-y-3.5 z-[60] text-xs">
                   <div className="flex items-center justify-between">
                     <span className="font-black text-sm text-[var(--text-main)]">
                       Theme
@@ -282,7 +359,7 @@ export default function Navbar() {
                     </button>
                   </div>
 
-                  {/* Light / Dark Mode Toggle */}
+                  {/* MODE: Light / Dark */}
                   <div className="space-y-1.5">
                     <div className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
                       Mode
@@ -293,11 +370,9 @@ export default function Navbar() {
                         onClick={() => {
                           if (theme !== "light") toggleTheme();
                         }}
-                        className={`py-2 px-2.5 rounded-xl font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
-                          theme === "light"
-                            ? "funky-btn-primary"
-                            : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
-                        }`}
+                        className={`py-2 px-2.5 rounded-xl font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${getSegmentedPillClass(
+                          theme === "light",
+                        )}`}
                       >
                         <Sun className="w-3.5 h-3.5 shrink-0" />
                         <span>Light</span>
@@ -307,11 +382,9 @@ export default function Navbar() {
                         onClick={() => {
                           if (theme !== "dark") toggleTheme();
                         }}
-                        className={`py-2 px-2.5 rounded-xl font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
-                          theme === "dark"
-                            ? "funky-btn-primary"
-                            : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
-                        }`}
+                        className={`py-2 px-2.5 rounded-xl font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${getSegmentedPillClass(
+                          theme === "dark",
+                        )}`}
                       >
                         <Moon className="w-3.5 h-3.5 shrink-0" />
                         <span>Dark</span>
@@ -319,7 +392,7 @@ export default function Navbar() {
                     </div>
                   </div>
 
-                  {/* F1 Compound Style: Hard (Color UI) / Soft (Frosted Classic UI) */}
+                  {/* COMPOUND: Hard / Soft */}
                   <div className="space-y-1.5">
                     <div className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
                       Compound
@@ -328,11 +401,9 @@ export default function Navbar() {
                       <button
                         type="button"
                         onClick={() => setThemeMode(true)}
-                        className={`py-2 px-2.5 rounded-xl font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
-                          enhancedTheme
-                            ? "funky-btn-primary"
-                            : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
-                        }`}
+                        className={`py-2 px-2.5 rounded-xl font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${getSegmentedPillClass(
+                          enhancedTheme,
+                        )}`}
                       >
                         <Palette className="w-3.5 h-3.5 shrink-0" />
                         <span>Hard</span>
@@ -340,15 +411,54 @@ export default function Navbar() {
                       <button
                         type="button"
                         onClick={() => setThemeMode(false)}
-                        className={`py-2 px-2.5 rounded-xl font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
-                          !enhancedTheme
-                            ? "funky-btn-primary"
-                            : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
-                        }`}
+                        className={`py-2 px-2.5 rounded-xl font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${getSegmentedPillClass(
+                          !enhancedTheme,
+                        )}`}
                       >
                         <Layers className="w-3.5 h-3.5 shrink-0" />
                         <span>Soft</span>
                       </button>
+                    </div>
+                  </div>
+
+                  {/* F1 TEAM LIVERY */}
+                  <div className="space-y-1.5">
+                    <div className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1">
+                      <Flag className="w-3 h-3" /> F1 Team Livery
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {F1_TEAMS.map((t) => {
+                        const active = f1Team === t.id;
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => selectF1Team(t.id)}
+                            style={
+                              active
+                                ? {
+                                    borderColor: t.swatch,
+                                    boxShadow: `0 0 0 1px ${t.swatch}`,
+                                  }
+                                : undefined
+                            }
+                            className={`py-2 px-2.5 rounded-xl font-extrabold flex items-center gap-2 transition cursor-pointer border text-left ${
+                              active
+                                ? "bg-white/30 dark:bg-white/15 text-[var(--text-main)]"
+                                : "bg-[var(--accent-secondary)]/70 border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-main)]"
+                            }`}
+                          >
+                            <span
+                              data-atlas-swatch={
+                                t.id === "default" ? "true" : undefined
+                              }
+                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: t.swatch }}
+                            />
+                            <span className="truncate">{t.label}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -370,7 +480,7 @@ export default function Navbar() {
                   {hasUnreadAlert && (
                     <span
                       aria-label="New notification"
-                      className="absolute top-0.5 right-0.5 w-2.5 h-2.5 rounded-full bg-[#0e84eb] ring-2 ring-white/85 dark:ring-[#0b151e] shadow-sm"
+                      className="absolute top-0.5 right-0.5 w-2.5 h-2.5 rounded-full bg-[var(--team-accent)] ring-2 ring-white/85 dark:ring-[#0b151e] shadow-sm"
                     />
                   )}
                 </button>
@@ -446,7 +556,6 @@ export default function Navbar() {
         </div>
       </header>
 
-      {/* 24-Hour Fresh Open Theme-Matched Frosted Popup with X Mark */}
       {user && dailyBannerAlert && (
         <div className="glass-popover fixed top-20 right-4 z-[60] max-w-xs w-[calc(100vw-2rem)] p-4 flex items-start justify-between gap-3">
           <div className="flex items-start gap-2.5 min-w-0">
@@ -473,7 +582,6 @@ export default function Navbar() {
         </div>
       )}
 
-      {/* Floating Add Entry Button Positioned Above Bottom Dock on Mobile */}
       {user && (
         <button
           type="button"
@@ -486,7 +594,6 @@ export default function Navbar() {
         </button>
       )}
 
-      {/* Only Show Floating Navigation Dock Once Logged In */}
       {user && (
         <nav
           aria-label="Primary Navigation"

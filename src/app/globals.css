@@ -15,6 +15,8 @@
   --bg-input: rgba(255, 255, 255, 0.16);
   --text-main: #0c2638;
   --text-muted: #3b586d;
+  --team-accent: #0e84eb;
+  --team-secondary: #025cbc;
   --accent-primary: linear-gradient(
     135deg,
     rgba(14, 132, 235, 0.56) 0%,
@@ -50,6 +52,8 @@ html.dark {
   --bg-input: rgba(14, 27, 38, 0.26);
   --text-main: #f0f6fc;
   --text-muted: #9eb6ca;
+  --team-accent: #3898ec;
+  --team-secondary: #1c6cbc;
   --accent-primary: linear-gradient(
     135deg,
     rgba(56, 152, 236, 0.36) 0%,
@@ -69,6 +73,171 @@ html.dark {
     0 8px 24px -6px rgba(10, 45, 80, 0.45),
     inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.48),
     inset 0 -1px 1px 0 rgba(0, 0, 0, 0.25);
+}
+
+/* F1 Team Visual Liveries (applied when data-f1-team is not "default") */
+html[data-f1-team="ferrari"] {
+  --team-accent: #dc0000;
+  --team-secondary: #ffeb00;
+  --team-shade-1: #ff2800;
+  --team-shade-2: #ff8a00;
+  --team-shade-3: #b30000;
+  --team-shade-4: #ffd60a;
+  --accent-primary: linear-gradient(
+    135deg,
+    rgba(220, 0, 0, 0.82) 0%,
+    rgba(155, 0, 0, 0.9) 100%
+  );
+  --shadow-primary:
+    0 8px 22px -6px rgba(220, 0, 0, 0.42),
+    inset 0 1.5px 1.5px 0 rgba(255, 235, 0, 0.52),
+    inset 0 -1px 1px 0 rgba(110, 0, 0, 0.3);
+}
+
+html[data-f1-team="mercedes"] {
+  --team-accent: #00d2be;
+  --team-secondary: #94a3b8;
+  --team-shade-1: #00d2be;
+  --team-shade-2: #cbd5e1;
+  --team-shade-3: #0f766e;
+  --team-shade-4: #38bdf8;
+  --accent-primary: linear-gradient(
+    135deg,
+    rgba(0, 210, 190, 0.78) 0%,
+    rgba(13, 148, 136, 0.88) 100%
+  );
+  --shadow-primary:
+    0 8px 22px -6px rgba(0, 210, 190, 0.4),
+    inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.75),
+    inset 0 -1px 1px 0 rgba(15, 23, 42, 0.25);
+}
+
+html[data-f1-team="redbull"] {
+  --team-accent: #1e41ff;
+  --team-secondary: #facc15;
+  --team-shade-1: #3b82f6;
+  --team-shade-2: #facc15;
+  --team-shade-3: #ef4444;
+  --team-shade-4: #1d4ed8;
+  --accent-primary: linear-gradient(
+    135deg,
+    rgba(30, 65, 255, 0.84) 0%,
+    rgba(18, 30, 130, 0.92) 100%
+  );
+  --shadow-primary:
+    0 8px 22px -6px rgba(30, 65, 255, 0.44),
+    inset 0 1.5px 1.5px 0 rgba(250, 204, 21, 0.52),
+    inset 0 -1px 1px 0 rgba(255, 30, 0, 0.24);
+}
+
+html[data-f1-team="mclaren"] {
+  --team-accent: #ff8000;
+  --team-secondary: #00a0de;
+  --team-shade-1: #ff8000;
+  --team-shade-2: #00a0de;
+  --team-shade-3: #ea580c;
+  --team-shade-4: #fbbf24;
+  --accent-primary: linear-gradient(
+    135deg,
+    rgba(255, 128, 0, 0.86) 0%,
+    rgba(215, 85, 0, 0.92) 100%
+  );
+  --shadow-primary:
+    0 8px 22px -6px rgba(255, 128, 0, 0.44),
+    inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -1px 1px 0 rgba(0, 160, 222, 0.28);
+}
+
+html[data-f1-team="astonmartin"] {
+  --team-accent: #006f62;
+  --team-secondary: #cedc00;
+  --team-shade-1: #10b981;
+  --team-shade-2: #cedc00;
+  --team-shade-3: #047857;
+  --team-shade-4: #6ee7b7;
+  --accent-primary: linear-gradient(
+    135deg,
+    rgba(0, 111, 98, 0.86) 0%,
+    rgba(4, 76, 66, 0.94) 100%
+  );
+  --shadow-primary:
+    0 8px 22px -6px rgba(0, 111, 98, 0.44),
+    inset 0 1.5px 1.5px 0 rgba(206, 220, 0, 0.55),
+    inset 0 -1px 1px 0 rgba(0, 48, 42, 0.32);
+}
+
+.team-pill-active {
+  background: var(--accent-primary);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: var(--shadow-primary);
+}
+
+/* Team-specific buttons, cards, bars & multi-shade graphs */
+html:not([data-f1-team="default"]) .funky-btn {
+  border-color: color-mix(in srgb, var(--team-accent) 45%, var(--border-color));
+}
+
+html:not([data-f1-team="default"]) .funky-card {
+  border-color: color-mix(in srgb, var(--team-accent) 28%, var(--border-color));
+}
+
+/* Combo graph polyline & bars */
+html:not([data-f1-team="default"]) svg polyline {
+  stroke: var(--team-shade-1);
+}
+
+html:not([data-f1-team="default"]) svg rect[fill="#0e84eb"] {
+  fill: var(--team-shade-1);
+}
+
+/* Expense Split 4 series: give each category a distinct shade of the active team */
+html:not([data-f1-team="default"]) svg g:nth-of-type(3) path[fill="none"],
+html:not([data-f1-team="default"]) svg g:nth-of-type(3) circle {
+  stroke: var(--team-shade-1);
+}
+
+html:not([data-f1-team="default"]) svg g:nth-of-type(4) path[fill="none"],
+html:not([data-f1-team="default"]) svg g:nth-of-type(4) circle {
+  stroke: var(--team-shade-2);
+}
+
+html:not([data-f1-team="default"]) svg g:nth-of-type(5) path[fill="none"],
+html:not([data-f1-team="default"]) svg g:nth-of-type(5) circle {
+  stroke: var(--team-shade-3);
+}
+
+html:not([data-f1-team="default"]) svg g:nth-of-type(6) path[fill="none"],
+html:not([data-f1-team="default"]) svg g:nth-of-type(6) circle {
+  stroke: var(--team-shade-4);
+}
+
+/* 12-Month Mileage & Fuel popup bars and monthly readout shades (excluding the Atlas selector dot) */
+html:not([data-f1-team="default"])
+  :not(
+    [data-atlas-swatch="true"]
+  )[style*="background-color: rgb(14, 132, 235)"],
+html:not([data-f1-team="default"])
+  :not([data-atlas-swatch="true"])[style*="background-color: #0e84eb"],
+html:not([data-f1-team="default"])
+  :not(
+    [data-atlas-swatch="true"]
+  )[style*="background-color: rgb(16, 185, 129)"],
+html:not([data-f1-team="default"])
+  :not(
+    [data-atlas-swatch="true"]
+  )[style*="background-color: rgb(245, 158, 11)"] {
+  background-color: var(--team-shade-1) !important;
+}
+
+html:not([data-f1-team="default"]) .text-emerald-600,
+html:not([data-f1-team="default"]) .dark\:text-emerald-400 {
+  color: var(--team-shade-2) !important;
+}
+
+html:not([data-f1-team="default"]) .text-amber-600,
+html:not([data-f1-team="default"]) .dark\:text-amber-400 {
+  color: var(--team-shade-4) !important;
 }
 
 html,
