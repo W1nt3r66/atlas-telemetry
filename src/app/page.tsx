@@ -417,7 +417,7 @@ export default function DashboardPage() {
     (activeVehicle as { avatar?: string | null } | null)?.avatar || null;
 
   return (
-    <>
+    <div className="w-full max-w-full overflow-x-hidden">
       <div
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -426,7 +426,7 @@ export default function DashboardPage() {
           transform:
             swipeOffset !== 0 ? `translateX(${swipeOffset}px)` : undefined,
         }}
-        className="space-y-4 transition-transform duration-200 ease-out"
+        className="w-full max-w-full space-y-4 transition-transform duration-200 ease-out"
       >
         {/* Device Clock Greeting & Swipe Pagination Dots */}
         <div className="px-1 flex items-center justify-between">
@@ -462,14 +462,14 @@ export default function DashboardPage() {
 
         {/* Compact Sign-In Prompt When Logged Out */}
         {!user && (
-          <div className="funky-card p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3">
-            <div className="space-y-0.5">
+          <div className="funky-card p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 max-w-full">
+            <div className="space-y-0.5 min-w-0 flex-1">
               <div className="font-black text-sm">
-                Sign in to sync your garage &amp; telemetry
+                Sign in or create an account to get your car&apos;s diagnostics
               </div>
               <p className="text-xs text-[var(--text-muted)]">
-                Log in with Google to load your vehicles, fuel logs, and mileage
-                across devices.
+                Shift out of neutral and sync your vehicles, fuel logs, and
+                mileage across devices.
               </p>
             </div>
 
@@ -494,7 +494,7 @@ export default function DashboardPage() {
                 }
               : undefined
           }
-          className="funky-card p-5 sm:p-6 min-h-[126px] sm:min-h-[140px] relative overflow-hidden flex items-end"
+          className="funky-card p-5 sm:p-6 min-h-[126px] sm:min-h-[140px] relative overflow-hidden flex items-end max-w-full"
         >
           {enhancedTheme && activeVehicle && (
             <div className="pointer-events-none select-none absolute inset-y-0 left-[34%] sm:left-[35%] right-0 flex items-end justify-end z-0">
@@ -553,14 +553,14 @@ export default function DashboardPage() {
         </div>
 
         {/* Single Cockpit Telemetry Cluster & Care Rings Tile */}
-        <div className="funky-card p-5 sm:p-6 relative overflow-hidden">
+        <div className="funky-card p-5 sm:p-6 relative overflow-hidden max-w-full">
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">
             {/* Left: Analog Sport Instrument Cluster */}
             <Link
               href={user ? "/logs?filter=fuel" : "/"}
-              className="sm:col-span-6 flex flex-col items-center justify-center p-3.5 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-color)] hover:brightness-105 transition-all"
+              className="sm:col-span-6 flex flex-col items-center justify-center p-3.5 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-color)] hover:brightness-105 transition-all min-w-0"
             >
-              <div className="relative w-56 h-36 flex items-center justify-center">
+              <div className="relative w-56 max-w-full h-36 flex items-center justify-center">
                 <svg
                   viewBox="0 0 220 142"
                   className="w-full h-full overflow-visible"
@@ -736,7 +736,7 @@ export default function DashboardPage() {
             </Link>
 
             {/* Right: Monthly Spend with MoM Trend Pill + Radial Wash & Service Rings */}
-            <div className="sm:col-span-6 flex flex-col justify-between gap-4">
+            <div className="sm:col-span-6 flex flex-col justify-between gap-4 min-w-0">
               <Link
                 href={user ? "/logs?filter=all" : "/"}
                 className="flex items-center justify-between gap-2 px-4 py-3 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-color)] hover:brightness-105 transition-all"
@@ -781,7 +781,7 @@ export default function DashboardPage() {
                 {/* Wash Ring */}
                 <div
                   onClick={() => user && router.push("/logs?filter=wash")}
-                  className="p-3 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-color)] flex flex-col items-center text-center gap-2 cursor-pointer hover:brightness-105 transition-all"
+                  className="p-3 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-color)] flex flex-col items-center text-center gap-2 cursor-pointer hover:brightness-105 transition-all min-w-0"
                 >
                   <div className="relative w-12 h-12 flex items-center justify-center">
                     <svg
@@ -858,7 +858,7 @@ export default function DashboardPage() {
                 {/* Service Ring */}
                 <div
                   onClick={() => user && router.push("/logs?filter=service")}
-                  className="p-3 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-color)] flex flex-col items-center text-center gap-2 cursor-pointer hover:brightness-105 transition-all"
+                  className="p-3 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-color)] flex flex-col items-center text-center gap-2 cursor-pointer hover:brightness-105 transition-all min-w-0"
                 >
                   <div className="relative w-12 h-12 flex items-center justify-center">
                     <svg
@@ -944,7 +944,7 @@ export default function DashboardPage() {
             {/* Cost-Per-Kilometer & True Ownership Economics */}
             <Link
               href={user ? "/logs" : "/"}
-              className="funky-card p-5 flex flex-col justify-between gap-3.5 hover:brightness-105 transition-all"
+              className="funky-card p-5 flex flex-col justify-between gap-3.5 hover:brightness-105 transition-all min-w-0"
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-black text-sm flex items-center gap-1.5">
@@ -969,7 +969,7 @@ export default function DashboardPage() {
                       ? { borderLeftWidth: "3px", borderLeftColor: "#0e84eb" }
                       : undefined
                   }
-                  className="p-3 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-color)]"
+                  className="p-3 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-color)] min-w-0"
                 >
                   <div
                     className={`text-[10px] font-extrabold uppercase tracking-wider ${
@@ -997,7 +997,7 @@ export default function DashboardPage() {
                       ? { borderLeftWidth: "3px", borderLeftColor: "#6366f1" }
                       : undefined
                   }
-                  className="p-3 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-color)]"
+                  className="p-3 rounded-2xl bg-[var(--accent-secondary)] border border-[var(--border-color)] min-w-0"
                 >
                   <div
                     className={`text-[10px] font-extrabold uppercase tracking-wider ${
@@ -1064,7 +1064,7 @@ export default function DashboardPage() {
             </Link>
 
             {/* Compliance & Renewal Dates Vault */}
-            <div className="funky-card p-5 flex flex-col justify-between gap-3">
+            <div className="funky-card p-5 flex flex-col justify-between gap-3 min-w-0">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-black text-sm flex items-center gap-1.5">
                   <ShieldCheck
@@ -1123,7 +1123,7 @@ export default function DashboardPage() {
         )}
 
         {/* Collapsible Recent Logs Dropdown Card */}
-        <div className="funky-card p-4 sm:p-5">
+        <div className="funky-card p-4 sm:p-5 max-w-full">
           <div className="flex items-center justify-between gap-2">
             <button
               type="button"
@@ -1168,6 +1168,8 @@ export default function DashboardPage() {
                             : ""}
                         </span>
                       </>
+                    ) : !user ? (
+                      "Log in or create an account to check under the hood of your diagnostics."
                     ) : (
                       "No logs recorded yet"
                     )}
@@ -1198,8 +1200,9 @@ export default function DashboardPage() {
             <div className="mt-3 pt-2 border-t border-[var(--border-subtle)]">
               {vLogs.length === 0 ? (
                 <p className="text-xs text-[var(--text-muted)] py-3">
-                  No telemetry logs yet. Tap + in the top bar to log fuel or
-                  care.
+                  {!user
+                    ? "Log in or create an account to check under the hood of your car's diagnostics."
+                    : "No telemetry logs yet. Tap + in the top bar to log fuel or care."}
                 </p>
               ) : (
                 <div className="divide-y divide-[var(--border-subtle)]">
@@ -1359,6 +1362,6 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
