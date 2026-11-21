@@ -467,7 +467,7 @@ export default function DashboardPage() {
               enhancedTheme
                 ? {
                     backgroundImage:
-                      "radial-gradient(circle at 92% 20%, rgba(56, 152, 236, 0.14) 0%, transparent 60%)",
+                      "radial-gradient(circle at 82% 35%, rgba(167, 199, 231, 0.35) 0%, rgba(251, 146, 158, 0.22) 52%, transparent 80%)",
                   }
                 : undefined
             }
@@ -510,65 +510,76 @@ export default function DashboardPage() {
               enhancedTheme
                 ? {
                     backgroundImage:
-                      "radial-gradient(circle at 92% 20%, rgba(56, 152, 236, 0.14) 0%, transparent 60%)",
+                      "radial-gradient(circle at 78% 42%, rgba(148, 197, 255, 0.34) 0%, rgba(251, 113, 133, 0.22) 55%, rgba(255, 255, 255, 0.14) 100%)",
                   }
                 : undefined
             }
-            className="funky-card p-5 sm:p-6 min-h-[126px] sm:min-h-[140px] relative overflow-hidden flex items-end max-w-full"
+            className="funky-card pt-6 pb-3.5 px-5 sm:pt-7 sm:pb-4 sm:px-6 min-h-[128px] sm:min-h-[140px] relative overflow-hidden flex items-start max-w-full"
           >
             {enhancedTheme && activeVehicle && (
-              <div className="pointer-events-none select-none absolute inset-y-0 left-[34%] sm:left-[35%] right-0 flex items-end justify-end z-0">
+              <div
+                style={{
+                  WebkitMaskImage:
+                    "linear-gradient(to right, #000 0%, #000 50%, rgba(0, 0, 0, 0.42) 76%, transparent 100%)",
+                  maskImage:
+                    "linear-gradient(to right, #000 0%, #000 50%, rgba(0, 0, 0, 0.42) 76%, transparent 100%)",
+                }}
+                className="pointer-events-none select-none absolute top-0 bottom-8 left-[42%] sm:left-[46%] right-0 sm:right-1 flex items-center justify-end z-0 [&_img]:!w-full [&_img]:!h-full [&_img]:!scale-[1.32] [&_img]:!origin-right [&_img]:!object-contain [&_img]:!object-right [&_div]:!w-full [&_div]:!h-full [&_div]:!flex [&_div]:!items-center [&_div]:!justify-end"
+              >
                 <VehicleAvatar
                   avatarKey={vehicleAvatarKey}
                   vehicleId={activeVehicle.id}
-                  className="w-full h-full"
+                  className="w-full h-full scale-[1.32] origin-right object-contain object-right"
                 />
               </div>
             )}
 
-            <div className="relative z-10 w-full flex items-end justify-between gap-3">
-              <div className="space-y-1 min-w-0 flex-1">
-                <div
-                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold max-w-full border ${
-                    enhancedTheme
-                      ? "bg-[#0e84eb]/12 border-[#0e84eb]/30 text-[#025cbc] dark:text-[#60a5fa]"
-                      : "bg-[var(--accent-secondary)] border-[var(--border-color)]"
-                  }`}
-                >
-                  <Sparkles className="w-3 h-3 shrink-0" />
-                  <span className="truncate">
-                    {activeVehicle
-                      ? `${activeVehicle.plate || "IN12AB3456"} • ${activeVehicle.fuel_type}`
-                      : "NO VEHICLE SELECTED"}
-                  </span>
-                </div>
-                <h1 className="text-3xl sm:text-4xl font-black tracking-tight leading-none pt-1 truncate">
-                  {activeVehicle ? activeVehicle.name : "Atlas Telemetry"}
-                </h1>
-                <p className="text-xs font-semibold text-[var(--text-muted)] truncate">
-                  {activeVehicle
-                    ? `${activeVehicle.manufacturer} • ${owner.fullName || user?.email || "Driver"}`
-                    : "Add a vehicle in Garage to begin"}
-                </p>
-              </div>
-
-              <div className="relative z-20 text-right shrink-0">
-                <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#081526] dark:text-slate-100 mb-0.5">
-                  Odometer
-                </div>
-                <div className="text-2xl sm:text-3xl font-black tabular-nums leading-none text-[#06101e] dark:text-white">
-                  {latestOdo.toLocaleString()}{" "}
-                  <span
-                    className={`text-xs sm:text-sm font-extrabold ${
+            <div className="relative z-10 w-full flex flex-col justify-between gap-2">
+              <div className="w-full flex items-end justify-between gap-3">
+                <div className="space-y-1 min-w-0 flex-1 pr-2">
+                  <div
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold max-w-full border ${
                       enhancedTheme
-                        ? "text-[#025cbc] dark:text-[#3898ec]"
-                        : "font-bold text-[var(--text-muted)]"
+                        ? "bg-[#0e84eb]/12 border-[#0e84eb]/35 text-[#025cbc] dark:text-[#60a5fa]"
+                        : "bg-[var(--accent-secondary)] border-[var(--border-color)]"
                     }`}
                   >
-                    km
-                  </span>
+                    <Sparkles className="w-3 h-3 shrink-0" />
+                    <span className="truncate">
+                      {activeVehicle
+                        ? `${activeVehicle.plate || "IN12AB3456"} • ${activeVehicle.fuel_type}`
+                        : "NO VEHICLE SELECTED"}
+                    </span>
+                  </div>
+                  <h1 className="text-3xl sm:text-4xl font-black tracking-tight leading-none pt-0.5 truncate">
+                    {activeVehicle ? activeVehicle.name : "Atlas Telemetry"}
+                  </h1>
+                </div>
+
+                <div className="relative z-20 text-right shrink-0">
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[#081526] dark:text-slate-100 mb-0.5">
+                    ODOMETER
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black tabular-nums leading-none text-[#06101e] dark:text-white">
+                    {latestOdo.toLocaleString()}{" "}
+                    <span
+                      className={`text-xs sm:text-sm font-extrabold ${
+                        enhancedTheme
+                          ? "text-[#025cbc] dark:text-[#3898ec]"
+                          : "font-bold text-[var(--text-muted)]"
+                      }`}
+                    >
+                      km
+                    </span>
+                  </div>
                 </div>
               </div>
+
+              <p className="text-xs font-semibold text-[var(--text-muted)] truncate pr-28 sm:pr-40">
+                {activeVehicle
+                  ? activeVehicle.manufacturer
+                  : "Add a vehicle in Garage to begin"}
+              </p>
             </div>
           </div>
         )}

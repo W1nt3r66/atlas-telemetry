@@ -191,6 +191,7 @@ export default function Navbar() {
   } | null>(null);
 
   const themeMenuRef = useRef<HTMLDivElement>(null);
+  const notifMenuRef = useRef<HTMLDivElement>(null);
 
   // Register Service Worker for Android Chrome & iOS Home Screen PWA
   useEffect(() => {
@@ -235,19 +236,46 @@ export default function Navbar() {
   };
 
   useEffect(() => {
-    const onPointerDown = (e: MouseEvent) => {
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node | null;
       if (
         themeMenuRef.current &&
-        !themeMenuRef.current.contains(e.target as Node)
+        target &&
+        !themeMenuRef.current.contains(target)
       ) {
         setIsThemeOpen(false);
       }
     };
     if (isThemeOpen) {
       document.addEventListener("mousedown", onPointerDown);
+      document.addEventListener("touchstart", onPointerDown, { passive: true });
     }
-    return () => document.removeEventListener("mousedown", onPointerDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+    };
   }, [isThemeOpen]);
+
+  useEffect(() => {
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node | null;
+      if (
+        notifMenuRef.current &&
+        target &&
+        !notifMenuRef.current.contains(target)
+      ) {
+        setIsNotifOpen(false);
+      }
+    };
+    if (isNotifOpen) {
+      document.addEventListener("mousedown", onPointerDown);
+      document.addEventListener("touchstart", onPointerDown, { passive: true });
+    }
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+    };
+  }, [isNotifOpen]);
 
   const vehicleLogs = logs.filter((l) => l.vehicle_id === activeVehicle?.id);
   const latestOdo = Math.max(
@@ -551,13 +579,14 @@ export default function Navbar() {
             </div>
 
             {user && (
-              <div className="relative">
+              <div className="relative" ref={notifMenuRef}>
                 <button
                   type="button"
                   onClick={() => {
-                    setIsNotifOpen(!isNotifOpen);
+                    setIsNotifOpen((prev) => !prev);
                     setIsThemeOpen(false);
                   }}
+                  aria-expanded={isNotifOpen}
                   title="Maintenance Alerts"
                   className="funky-btn p-2 rounded-full bg-[var(--accent-secondary)] relative cursor-pointer"
                 >

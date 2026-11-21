@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   useApp,
   PowertrainType,
@@ -27,6 +27,22 @@ import {
 
 const INDIAN_PLATE_REGEX =
   /^(?:[A-Z]{2}[0-9]{1,2}[A-Z]{0,3}[0-9]{4}|[0-9]{2}BH[0-9]{4}[A-Z]{1,2})$/;
+
+function getPresetsForWheeler(wheeler: WheelerType) {
+  const targetCategory = wheeler === "2-Wheeler" ? "2-Wheeler" : "4-Wheeler";
+  const filtered = AVATAR_PRESETS.filter((p) => p.category === targetCategory);
+  return filtered.length > 0 ? filtered : AVATAR_PRESETS;
+}
+
+function getDefaultAvatarForWheeler(wheeler: WheelerType): VehicleAvatarKey {
+  const pool = getPresetsForWheeler(wheeler);
+  if (wheeler === "2-Wheeler") {
+    return (pool[0]?.key || "HotCruze") as VehicleAvatarKey;
+  }
+  return (pool.find((p) => p.key === "PrinceofCalcutta")?.key ||
+    pool[0]?.key ||
+    "PrinceofCalcutta") as VehicleAvatarKey;
+}
 
 function isValidIndianPlate(raw: string): boolean {
   const cleaned = raw.replace(/[\s-]/g, "").toUpperCase();
@@ -63,6 +79,8 @@ export default function GaragePage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editPlate, setEditPlate] = useState("");
+  const [editWheelerType, setEditWheelerType] =
+    useState<WheelerType>("4-Wheeler");
   const [editServiceInterval, setEditServiceInterval] = useState("10000");
   const [editAvatar, setEditAvatar] =
     useState<VehicleAvatarKey>("PrinceofCalcutta");
@@ -74,6 +92,15 @@ export default function GaragePage() {
   const [avatarTick, setAvatarTick] = useState(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  const addPresets = useMemo(
+    () => getPresetsForWheeler(wheelerType),
+    [wheelerType],
+  );
+  const editPresets = useMemo(
+    () => getPresetsForWheeler(editWheelerType),
+    [editWheelerType],
+  );
+
   useEffect(() => {
     const syncAvatars = () => setAvatarTick((n) => n + 1);
     window.addEventListener("atlas:vehicle-avatar-change", syncAvatars);
@@ -81,17 +108,42 @@ export default function GaragePage() {
       window.removeEventListener("atlas:vehicle-avatar-change", syncAvatars);
   }, []);
 
+  const handleWheelerChange = (nextWheeler: WheelerType) => {
+    setWheelerType(nextWheeler);
+    const nextPool = getPresetsForWheeler(nextWheeler);
+    if (!nextPool.some((p) => p.key === selectedAvatar)) {
+      setSelectedAvatar(getDefaultAvatarForWheeler(nextWheeler));
+    }
+  };
+
+  const handleEditWheelerChange = (nextWheeler: WheelerType) => {
+    setEditWheelerType(nextWheeler);
+    const nextPool = getPresetsForWheeler(nextWheeler);
+    if (!nextPool.some((p) => p.key === editAvatar)) {
+      setEditAvatar(getDefaultAvatarForWheeler(nextWheeler));
+    }
+  };
+
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3200);
   };
 
   const resolveVehicleAvatar = (v: Vehicle): VehicleAvatarKey => {
+    const vWheeler: WheelerType =
+      v.wheeler_type === "2-Wheeler" ? "2-Wheeler" : "4-Wheeler";
+    const allowedKeys = new Set(
+      getPresetsForWheeler(vWheeler).map((p) => p.key),
+    );
     const direct = (v as Vehicle & { avatar?: string | null }).avatar;
-    if (direct && AVATAR_PRESETS.some((p) => p.key === direct)) {
+    if (direct && allowedKeys.has(direct)) {
       return direct as VehicleAvatarKey;
     }
-    return getSavedVehicleAvatar(v.id);
+    const saved = getSavedVehicleAvatar(v.id);
+    if (saved && allowedKeys.has(saved)) {
+      return saved;
+    }
+    return getDefaultAvatarForWheeler(vWheeler);
   };
 
   const handleAddVehicle = async (e: React.FormEvent) => {
@@ -122,6 +174,8 @@ export default function GaragePage() {
       return;
     }
 
+    const normalizedWheeler: WheelerType =
+      wheelerType === "2-Wheeler" ? "2-Wheeler" : "4-Wheeler";
     const today = new Date().toISOString().split("T")[0];
 
     const created = (await addVehicle({
@@ -130,7 +184,7 @@ export default function GaragePage() {
       manufacturer: cleanMake,
       year: Number(year),
       fuel_type: fuelType,
-      wheeler_type: wheelerType,
+      wheeler_type: normalizedWheeler,
       initial_odo: Number(initialOdo),
       service_interval_km: Number(serviceInterval),
       service_interval_days: 365,
@@ -158,6 +212,7 @@ export default function GaragePage() {
     setManufacturer("");
     setYear("");
     setServiceInterval("");
+    setWheelerType("4-Wheeler");
     setSelectedAvatar("PrinceofCalcutta");
     setInitialOdo("");
     setLastServiceOdo("");
@@ -169,9 +224,12 @@ export default function GaragePage() {
   };
 
   const startEdit = (v: Vehicle) => {
+    const vWheeler: WheelerType =
+      v.wheeler_type === "2-Wheeler" ? "2-Wheeler" : "4-Wheeler";
     setEditingId(v.id);
     setEditName(v.name);
     setEditPlate(v.plate);
+    setEditWheelerType(vWheeler);
     setEditServiceInterval(String(v.service_interval_km || 10000));
     setEditAvatar(resolveVehicleAvatar(v));
     setEditInsuranceExpiry(v.insurance_expiry || "");
@@ -201,6 +259,7 @@ export default function GaragePage() {
       await updateVehicle(id, {
         name: cleanName,
         plate: cleanPlate,
+        wheeler_type: editWheelerType,
         service_interval_km: Number(editServiceInterval),
         insurance_expiry: editInsuranceExpiry || "",
         puc_expiry: editPucExpiry || "",
@@ -211,6 +270,7 @@ export default function GaragePage() {
       updateVehicle(id, {
         name: cleanName,
         plate: cleanPlate,
+        wheeler_type: editWheelerType,
         service_interval_km: Number(editServiceInterval),
         insurance_expiry: editInsuranceExpiry || "",
         puc_expiry: editPucExpiry || "",
@@ -227,16 +287,17 @@ export default function GaragePage() {
     "flex items-center w-full h-11 mt-1.5 px-3.5 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-input)] text-[var(--text-main)] text-[16px] sm:text-sm font-medium leading-none appearance-none focus:outline-none";
 
   const renderAvatarPickerGrid = (
+    presets: typeof AVATAR_PRESETS,
     current: VehicleAvatarKey,
     onSelect: (key: VehicleAvatarKey) => void,
     compact = false,
   ) => (
     <div
       className={`grid ${
-        compact ? "grid-cols-3 gap-2" : "grid-cols-2 sm:grid-cols-3 gap-2.5"
+        compact ? "grid-cols-2 gap-2" : "grid-cols-2 sm:grid-cols-3 gap-2.5"
       } mt-1.5`}
     >
-      {AVATAR_PRESETS.map((preset) => {
+      {presets.map((preset) => {
         const active = current === preset.key;
         return (
           <button
@@ -345,12 +406,39 @@ export default function GaragePage() {
                       </div>
                     </div>
 
+                    <div>
+                      <label className="text-[11px] font-bold">Category</label>
+                      <div className="grid grid-cols-2 gap-2 mt-1.5">
+                        {(["4-Wheeler", "2-Wheeler"] as WheelerType[]).map(
+                          (cat) => (
+                            <button
+                              key={cat}
+                              type="button"
+                              onClick={() => handleEditWheelerChange(cat)}
+                              className={`py-2 rounded-full text-xs font-extrabold cursor-pointer ${
+                                editWheelerType === cat
+                                  ? "funky-btn-primary"
+                                  : "funky-btn bg-[var(--accent-secondary)]"
+                              }`}
+                            >
+                              {cat}
+                            </button>
+                          ),
+                        )}
+                      </div>
+                    </div>
+
                     <div className="pt-1 border-t border-[var(--border-subtle)]">
                       <label className="text-[11px] font-extrabold flex items-center gap-1 text-[#025cbc] dark:text-[#3898ec]">
                         <Sparkles className="w-3.5 h-3.5" />
                         <span>Hero Avatar (Color UI)</span>
                       </label>
-                      {renderAvatarPickerGrid(editAvatar, setEditAvatar, true)}
+                      {renderAvatarPickerGrid(
+                        editPresets,
+                        editAvatar,
+                        setEditAvatar,
+                        true,
+                      )}
                     </div>
 
                     <div className="pt-1 border-t border-[var(--border-subtle)] space-y-2">
@@ -626,23 +714,21 @@ export default function GaragePage() {
 
         <div>
           <label className="text-xs font-bold">vii. Vehicle Category *</label>
-          <div className="grid grid-cols-3 gap-2.5 mt-1.5">
-            {(["2-Wheeler", "3-Wheeler", "4-Wheeler"] as WheelerType[]).map(
-              (cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setWheelerType(cat)}
-                  className={`py-2.5 rounded-full text-xs font-extrabold cursor-pointer ${
-                    wheelerType === cat
-                      ? "funky-btn-primary"
-                      : "funky-btn bg-[var(--accent-secondary)]"
-                  }`}
-                >
-                  {cat}
-                </button>
-              ),
-            )}
+          <div className="grid grid-cols-2 gap-2.5 mt-1.5">
+            {(["4-Wheeler", "2-Wheeler"] as WheelerType[]).map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => handleWheelerChange(cat)}
+                className={`py-2.5 rounded-full text-xs font-extrabold cursor-pointer ${
+                  wheelerType === cat
+                    ? "funky-btn-primary"
+                    : "funky-btn bg-[var(--accent-secondary)]"
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -651,7 +737,12 @@ export default function GaragePage() {
             <Sparkles className="w-4 h-4" />
             <span>Hero Avatar (Visible on Color UI)</span>
           </label>
-          {renderAvatarPickerGrid(selectedAvatar, setSelectedAvatar, false)}
+          {renderAvatarPickerGrid(
+            addPresets,
+            selectedAvatar,
+            setSelectedAvatar,
+            false,
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
