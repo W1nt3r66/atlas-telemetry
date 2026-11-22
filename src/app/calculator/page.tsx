@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 import { useApp } from "@/context/AppContext";
 import { useDashboardTheme } from "@/hooks/useDashboardTheme";
 import {
@@ -13,6 +19,7 @@ import {
   X,
   Pencil,
   RotateCcw,
+  ArrowUpDown,
 } from "lucide-react";
 
 interface PlaceSuggestion {
@@ -412,68 +419,109 @@ export default function TripCalculatorPage() {
         )
       : 0;
 
-  const calculateRoute = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!origin.trim() || !destination.trim()) return;
-    setLoading(true);
-    setErrorMsg("");
-    setShowOriginDropdown(false);
-    setShowDestDropdown(false);
-    setMapPan({ x: 0, y: 0 });
-
-    try {
-      let p1 = originCoords;
-      let p2 = destCoords;
-
-      if (!p1) {
-        const list1 = await searchPlacesClient(origin);
-        if (list1[0]) p1 = { lat: list1[0].lat, lon: list1[0].lon };
-      }
-      if (!p2) {
-        const list2 = await searchPlacesClient(destination);
-        if (list2[0]) p2 = { lat: list2[0].lat, lon: list2[0].lon };
-      }
-
-      if (!p1 || !p2) {
-        setErrorMsg(
-          "Could not locate one of those places. Pick a suggestion from the list.",
-        );
-        setLoading(false);
-        return;
-      }
+  const runRouteCalculation = useCallback(
+    async (
+      rawOrigin: string,
+      rawOriginCoords: Coords | null,
+      rawDest: string,
+      rawDestCoords: Coords | null,
+    ) => {
+      if (!rawOrigin.trim() || !rawDest.trim()) return;
+      setLoading(true);
+      setErrorMsg("");
+      setShowOriginDropdown(false);
+      setShowDestDropdown(false);
+      setMapPan({ x: 0, y: 0 });
 
       try {
-        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${p1.lon},${p1.lat};${p2.lon},${p2.lat}?overview=full&geometries=geojson`;
-        const routeRes = await fetch(osrmUrl);
-        const routeData = await routeRes.json();
-        const routeObj = routeData?.routes?.[0];
+        let p1 = rawOriginCoords;
+        let p2 = rawDestCoords;
 
-        if (routeObj?.distance) {
-          setOneWayKm(Number((routeObj.distance / 1000).toFixed(1)));
-          const coords: Coords[] = Array.isArray(
-            routeObj?.geometry?.coordinates,
-          )
-            ? routeObj.geometry.coordinates.map(
-                ([lon, lat]: [number, number]) => ({
-                  lat,
-                  lon,
-                }),
-              )
-            : [p1, p2];
-          setRouteLine(coords);
+        if (!p1) {
+          const list1 = await searchPlacesClient(rawOrigin);
+          if (list1[0]) p1 = { lat: list1[0].lat, lon: list1[0].lon };
+        }
+        if (!p2) {
+          const list2 = await searchPlacesClient(rawDest);
+          if (list2[0]) p2 = { lat: list2[0].lat, lon: list2[0].lon };
+        }
+
+        if (!p1 || !p2) {
+          setErrorMsg(
+            "Could not locate one of those places. Pick a suggestion from the list.",
+          );
           setLoading(false);
           return;
         }
-      } catch {
-        // Fallback to road-adjusted distance if OSRM is unreachable
-      }
 
-      setOneWayKm(haversineRoadKm(p1.lat, p1.lon, p2.lat, p2.lon));
-      setRouteLine([p1, p2]);
-    } catch {
-      setErrorMsg("Route lookup failed. Please try again.");
+        try {
+          const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${p1.lon},${p1.lat};${p2.lon},${p2.lat}?overview=full&geometries=geojson`;
+          const routeRes = await fetch(osrmUrl);
+          const routeData = await routeRes.json();
+          const routeObj = routeData?.routes?.[0];
+
+          if (routeObj?.distance) {
+            setOneWayKm(Number((routeObj.distance / 1000).toFixed(1)));
+            const coords: Coords[] = Array.isArray(
+              routeObj?.geometry?.coordinates,
+            )
+              ? routeObj.geometry.coordinates.map(
+                  ([lon, lat]: [number, number]) => ({
+                    lat,
+                    lon,
+                  }),
+                )
+              : [p1, p2];
+            setRouteLine(coords);
+            setLoading(false);
+            return;
+          }
+        } catch {
+          // Fallback to road-adjusted distance if OSRM is unreachable
+        }
+
+        setOneWayKm(haversineRoadKm(p1.lat, p1.lon, p2.lat, p2.lon));
+        setRouteLine([p1, p2]);
+      } catch {
+        setErrorMsg("Route lookup failed. Please try again.");
+      }
+      setLoading(false);
+    },
+    [],
+  );
+
+  const calculateRoute = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await runRouteCalculation(origin, originCoords, destination, destCoords);
+  };
+
+  const handleSwapLocations = () => {
+    if (!origin && !destination && !originCoords && !destCoords) return;
+
+    const nextOrigin = destination;
+    const nextOriginCoords = destCoords;
+    const nextDest = origin;
+    const nextDestCoords = originCoords;
+    const hadActiveRoute = oneWayKm > 0 || routeLine.length >= 2;
+
+    setOrigin(nextOrigin);
+    setOriginCoords(nextOriginCoords);
+    setDestination(nextDest);
+    setDestCoords(nextDestCoords);
+    setOriginSuggestions([]);
+    setDestSuggestions([]);
+    setShowOriginDropdown(false);
+    setShowDestDropdown(false);
+    setErrorMsg("");
+
+    if (hadActiveRoute && nextOrigin.trim() && nextDest.trim()) {
+      void runRouteCalculation(
+        nextOrigin,
+        nextOriginCoords,
+        nextDest,
+        nextDestCoords,
+      );
     }
-    setLoading(false);
   };
 
   const totalDistance =
@@ -950,7 +998,18 @@ export default function TripCalculatorPage() {
           </div>
 
           <div ref={destWrapRef} className="relative">
-            <label className="block text-xs font-bold">Destination</label>
+            <div className="flex items-center justify-between gap-2">
+              <label className="block text-xs font-bold">Destination</label>
+              <button
+                type="button"
+                onClick={handleSwapLocations}
+                title="Swap Start & Destination"
+                aria-label="Swap Start and Destination"
+                className="inline-flex items-center justify-center p-0.5 text-[#025cbc] dark:text-[#3898ec] hover:opacity-80 transition cursor-pointer"
+              >
+                <ArrowUpDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
             <div className="relative">
               <input
                 value={destination}

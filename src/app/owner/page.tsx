@@ -259,7 +259,7 @@ export default function OwnerPage() {
       </div>
 
       <p className="text-center text-[11px] font-semibold tracking-wide text-[var(--text-muted)] pt-2">
-        Motorly is now Atlas &bull; v2.0.2
+        Motorly is now Atlas &bull; v2.04.02
       </p>
     </div>
   );
