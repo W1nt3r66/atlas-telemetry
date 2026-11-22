@@ -496,16 +496,16 @@ export default function Navbar() {
             </span>
           </Link>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {user && (
               <button
                 type="button"
                 onClick={() => setIsAddOpen(true)}
                 title="Add Entry"
-                className="funky-btn-primary p-2 sm:px-3.5 sm:py-2 rounded-full font-extrabold text-xs flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                className="funky-btn-primary px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-full font-extrabold text-[11px] sm:text-xs flex items-center gap-0.5 cursor-pointer whitespace-nowrap"
               >
-                <Plus className="w-4 h-4 stroke-[2.5]" />
-                <span className="hidden sm:inline">Add</span>
+                <Plus className="w-3.5 h-3.5 stroke-[2.6]" />
+                <span>Add</span>
               </button>
             )}
 
