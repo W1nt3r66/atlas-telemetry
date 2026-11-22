@@ -502,7 +502,7 @@ export default function Navbar() {
                 type="button"
                 onClick={() => setIsAddOpen(true)}
                 title="Add Entry"
-                className="funky-btn-primary px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-full font-extrabold text-[11px] sm:text-xs flex items-center gap-0.5 cursor-pointer whitespace-nowrap"
+                className="funky-btn-primary h-8 sm:h-9 px-2.5 sm:px-3.5 rounded-full font-extrabold text-[11px] sm:text-xs inline-flex items-center justify-center gap-0.5 cursor-pointer whitespace-nowrap"
               >
                 <Plus className="w-3.5 h-3.5 stroke-[2.6]" />
                 <span>Add</span>
@@ -518,7 +518,7 @@ export default function Navbar() {
                 }}
                 aria-expanded={isThemeOpen}
                 title="Theme Settings"
-                className="funky-btn p-2 sm:px-3 sm:py-2 rounded-full bg-[var(--accent-secondary)] font-extrabold text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                className="funky-btn h-8 sm:h-9 px-2 sm:px-3 rounded-full bg-[var(--accent-secondary)] font-extrabold text-xs inline-flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
               >
                 <SlidersHorizontal className="w-4 h-4 text-[#025cbc] dark:text-[#60a5fa]" />
                 <span className="hidden sm:inline">Theme</span>
@@ -649,7 +649,7 @@ export default function Navbar() {
                   }}
                   aria-expanded={isNotifOpen}
                   title="Maintenance Alerts"
-                  className="funky-btn p-2 rounded-full bg-[var(--accent-secondary)] relative cursor-pointer"
+                  className="funky-btn h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-[var(--accent-secondary)] relative inline-flex items-center justify-center cursor-pointer"
                 >
                   <Bell className="w-4 h-4" />
                   {hasUnreadAlert && (
@@ -753,7 +753,7 @@ export default function Navbar() {
                 type="button"
                 onClick={signOut}
                 title={`Sign Out (${user.email})`}
-                className={`px-3 py-2 rounded-full font-extrabold text-xs flex items-center gap-1.5 cursor-pointer transition border whitespace-nowrap ${
+                className={`h-8 sm:h-9 px-2.5 sm:px-3 rounded-full font-extrabold text-xs inline-flex items-center justify-center gap-1.5 cursor-pointer transition border whitespace-nowrap ${
                   enhancedTheme
                     ? "bg-rose-500/15 hover:bg-rose-500/25 text-rose-600 dark:text-rose-400 border-rose-400/40"
                     : "funky-btn bg-[var(--accent-secondary)]"
