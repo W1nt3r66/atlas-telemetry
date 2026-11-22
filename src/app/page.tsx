@@ -459,6 +459,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2 shrink-0">
             {liveWeather && (
               <div
+                title={`${Math.round(liveWeather.temperatureC)}°C • ${Math.round(liveWeather.humidityPct)}% humidity${maint ? ` • Wash schedule: ${maint.seasonLabel}` : ""}`}
                 className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border tabular-nums ${
                   isRainyWeather
                     ? "bg-sky-500/15 border-sky-400/40 text-sky-700 dark:text-sky-300"

@@ -6,7 +6,6 @@ import { useDashboardTheme } from "@/hooks/useDashboardTheme";
 import {
   Navigation,
   ExternalLink,
-  Fuel,
   Route,
   MapPin,
   LocateFixed,
@@ -574,7 +573,6 @@ export default function TripCalculatorPage() {
             .join(" ")
         : "";
 
-    // Slightly offset return leg for Round Trip so outbound and return remain visually distinct
     const returnPoints =
       screenPoints.length >= 2 && roundTrip
         ? [...screenPoints].reverse().map((pt, idx, arr) => {
@@ -850,8 +848,8 @@ export default function TripCalculatorPage() {
           </div>
         </div>
         <div className="funky-card p-4 text-center space-y-1">
-          <div className="text-[11px] font-bold text-[var(--text-muted)] flex items-center justify-center gap-1">
-            <Fuel className="w-3 h-3" /> Fuel
+          <div className="text-[11px] font-bold text-[var(--text-muted)]">
+            Fuel
           </div>
           <div className="text-xl font-black tabular-nums">
             {fuelNeeded.toFixed(1)} L

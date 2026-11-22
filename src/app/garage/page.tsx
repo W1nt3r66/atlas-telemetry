@@ -360,8 +360,8 @@ export default function GaragePage() {
       <div>
         <h1 className="text-2xl font-black">My Garage</h1>
         <p className="text-xs text-[var(--text-muted)]">
-          Manage your vehicles, Color UI hero avatars, service intervals, and
-          Insurance / PUC / RC renewal dates.
+          Manage your vehicles, Hard Compound hero avatars, service intervals,
+          and Insurance / PUC / RC renewal dates.
         </p>
       </div>
 
@@ -457,7 +457,7 @@ export default function GaragePage() {
                     <div className="pt-1 border-t border-[var(--border-subtle)]">
                       <label className="text-[11px] font-extrabold flex items-center gap-1 text-[#025cbc] dark:text-[#3898ec]">
                         <Sparkles className="w-3.5 h-3.5" />
-                        <span>Hero Avatar (Color UI)</span>
+                        <span>Hero Avatar (Hard Compound)</span>
                       </label>
                       {renderAvatarPickerGrid(
                         editPresets,
@@ -761,7 +761,7 @@ export default function GaragePage() {
         <div className="pt-2 border-t border-[var(--border-subtle)]">
           <label className="text-xs font-extrabold flex items-center gap-1.5 text-[#025cbc] dark:text-[#3898ec]">
             <Sparkles className="w-4 h-4" />
-            <span>Hero Avatar (Visible on Color UI)</span>
+            <span>Hero Avatar (Visible on Hard Compound)</span>
           </label>
           {renderAvatarPickerGrid(
             addPresets,
