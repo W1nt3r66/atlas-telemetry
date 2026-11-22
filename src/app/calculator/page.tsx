@@ -57,6 +57,16 @@ function haversineRoadKm(
   return Number((straightKm * 1.24).toFixed(1));
 }
 
+function formatDriveDuration(totalSeconds: number): string {
+  if (!totalSeconds || totalSeconds <= 0) return "";
+  const totalMinutes = Math.round(totalSeconds / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  if (hours <= 0) return `~${Math.max(1, mins)} min`;
+  if (mins === 0) return `~${hours} hr`;
+  return `~${hours} hr ${mins} min`;
+}
+
 function latLonToWorldPixel(lat: number, lon: number, zoom: number) {
   const scale = 256 * Math.pow(2, zoom);
   const x = ((lon + 180) / 360) * scale;
@@ -221,6 +231,7 @@ export default function TripCalculatorPage() {
   const [roundTrip, setRoundTrip] = useState(false);
 
   const [oneWayKm, setOneWayKm] = useState<number>(0);
+  const [oneWayDurationSec, setOneWayDurationSec] = useState<number>(0);
   const [routeLine, setRouteLine] = useState<Coords[]>([]);
   const [mapPan, setMapPan] = useState<{ x: number; y: number }>({
     x: 0,
@@ -276,6 +287,7 @@ export default function TripCalculatorPage() {
       setIsEditingFuelPrice(false);
       setRoundTrip(false);
       setOneWayKm(0);
+      setOneWayDurationSec(0);
       setRouteLine([]);
       setMapPan({ x: 0, y: 0 });
       setErrorMsg("");
@@ -290,6 +302,15 @@ export default function TripCalculatorPage() {
       }
     }
   }, [user, activeVehicle?.id, lastLoggedFuelRate, isEditingFuelPrice]);
+
+  useEffect(() => {
+    if (!origin.trim() && !destination.trim()) {
+      setOneWayKm(0);
+      setOneWayDurationSec(0);
+      setRouteLine([]);
+      setMapPan({ x: 0, y: 0 });
+    }
+  }, [origin, destination]);
 
   useEffect(() => {
     const handleOutside = (e: PointerEvent) => {
@@ -461,7 +482,13 @@ export default function TripCalculatorPage() {
           const routeObj = routeData?.routes?.[0];
 
           if (routeObj?.distance) {
-            setOneWayKm(Number((routeObj.distance / 1000).toFixed(1)));
+            const distKm = Number((routeObj.distance / 1000).toFixed(1));
+            setOneWayKm(distKm);
+            setOneWayDurationSec(
+              typeof routeObj?.duration === "number" && routeObj.duration > 0
+                ? routeObj.duration
+                : Math.round((distKm / 45) * 3600),
+            );
             const coords: Coords[] = Array.isArray(
               routeObj?.geometry?.coordinates,
             )
@@ -480,7 +507,9 @@ export default function TripCalculatorPage() {
           // Fallback to road-adjusted distance if OSRM is unreachable
         }
 
-        setOneWayKm(haversineRoadKm(p1.lat, p1.lon, p2.lat, p2.lon));
+        const fallbackKm = haversineRoadKm(p1.lat, p1.lon, p2.lat, p2.lon);
+        setOneWayKm(fallbackKm);
+        setOneWayDurationSec(Math.round((fallbackKm / 45) * 3600));
         setRouteLine([p1, p2]);
       } catch {
         setErrorMsg("Route lookup failed. Please try again.");
@@ -524,8 +553,30 @@ export default function TripCalculatorPage() {
     }
   };
 
+  const handleClearRoute = () => {
+    setOrigin("");
+    setOriginCoords(null);
+    setOriginSuggestions([]);
+    setShowOriginDropdown(false);
+    setDestination("");
+    setDestCoords(null);
+    setDestSuggestions([]);
+    setShowDestDropdown(false);
+    setOneWayKm(0);
+    setOneWayDurationSec(0);
+    setRouteLine([]);
+    setMapPan({ x: 0, y: 0 });
+    setErrorMsg("");
+  };
+
   const totalDistance =
     oneWayKm > 0 ? (roundTrip ? oneWayKm * 2 : oneWayKm) : 0;
+  const totalDurationLabel =
+    oneWayDurationSec > 0
+      ? formatDriveDuration(
+          roundTrip ? oneWayDurationSec * 2 : oneWayDurationSec,
+        )
+      : "";
   const fuelNeeded =
     totalDistance > 0 && avgMileage > 0 ? totalDistance / avgMileage : 0;
   const numericFuelPrice = Math.max(0, Number(fuelPrice) || 0);
@@ -736,6 +787,7 @@ export default function TripCalculatorPage() {
           <span className="px-2.5 py-0.5 rounded-full bg-[var(--accent-secondary)] border border-[var(--border-color)] tabular-nums">
             {roundTrip ? "Round-Trip" : "One-Way"} • {totalDistance.toFixed(1)}{" "}
             km
+            {totalDurationLabel ? ` • ${totalDurationLabel}` : ""}
           </span>
         </div>
 
@@ -857,6 +909,7 @@ export default function TripCalculatorPage() {
             <div className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1.5 flex-wrap pointer-events-none">
               <div className="px-2.5 py-1 rounded-full text-[11px] font-black tabular-nums backdrop-blur-md bg-white/85 dark:bg-slate-900/85 text-slate-900 dark:text-white border border-black/10 dark:border-white/15 shadow-sm">
                 {totalDistance.toFixed(1)} km road distance
+                {totalDurationLabel ? ` • ${totalDurationLabel}` : ""}
               </div>
               {roundTrip && (
                 <div className="px-2 py-1 rounded-full text-[10px] font-extrabold backdrop-blur-md bg-amber-500/20 dark:bg-amber-500/25 text-amber-900 dark:text-amber-200 border border-amber-500/40 shadow-sm">
@@ -1174,6 +1227,17 @@ export default function TripCalculatorPage() {
           >
             Google Maps <ExternalLink className="w-3.5 h-3.5" />
           </a>
+
+          {(oneWayKm > 0 || origin.trim() || destination.trim()) && (
+            <button
+              type="button"
+              onClick={handleClearRoute}
+              className="funky-btn py-3 px-4 rounded-full bg-[var(--accent-secondary)] font-black text-xs flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Clear</span>
+            </button>
+          )}
         </div>
       </form>
     </div>
